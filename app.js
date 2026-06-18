@@ -1,7 +1,7 @@
 const API = "https://sos.vsti.cl";
 
 const userId = localStorage.getItem("user_id")
-  || crypto.randomUUID();
+|| crypto.randomUUID();
 
 localStorage.setItem("user_id", userId);
 
@@ -11,107 +11,139 @@ const cancelButton = document.getElementById("cancelButton");
 const gpsStatus = document.getElementById("gpsStatus");
 const accuracyLabel = document.getElementById("accuracy");
 const eventStatus = document.getElementById("eventStatus");
+const statusLabel = document.getElementById("status");
 
 let currentEventId = null;
+statusLabel.textContent = "Lista para usar";
+
+
 
 async function sendSOS() {
 
-  gpsStatus.textContent = "Buscando...";
+	if (currentEventId) {
+		statusLabel.textContent = "Ya existe una alerta activa";
+		return;
+	}
 
-  navigator.geolocation.getCurrentPosition(
+	statusLabel.textContent = "Obteniendo ubicación...";
+	sosButton.disabled = true;
 
-    async (position) => {
+	gpsStatus.textContent = "Buscando...";
 
-      gpsStatus.textContent = "OK";
+	navigator.geolocation.getCurrentPosition(
 
-      const payload = {
-        user_id: userId,
-        name: "Usuario móvil",
-        source: "mobile_pwa",
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: Math.round(position.coords.accuracy),
-        battery: null
-      };
+			async (position) => {
 
-      accuracyLabel.textContent =
-        payload.accuracy + " m";
+			gpsStatus.textContent = "OK";
+			statusLabel.textContent = "Enviando alerta...";
 
-      const res = await fetch(
-        `${API}/public/mobile/sos`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
-        }
-      );
+			const payload = {
+user_id: userId,
+name: "Usuario móvil",
+source: "mobile_pwa",
+latitude: position.coords.latitude,
+longitude: position.coords.longitude,
+accuracy: Math.round(position.coords.accuracy),
+battery: null
+};
 
-      const data = await res.json();
+accuracyLabel.textContent =
+payload.accuracy + " m";
 
-      currentEventId = data.event_id;
+const res = await fetch(
+	`${API}/public/mobile/sos`,
+	{
+method: "POST",
+headers: {
+"Content-Type": "application/json"
+},
+body: JSON.stringify(payload)
+}
+);
 
-      localStorage.setItem(
-        "event_id",
-        currentEventId
-      );
+const data = await res.json();
 
-      eventStatus.textContent = "ACTIVO";
+currentEventId = data.event_id;
+statusLabel.textContent = "Alerta enviada";
+localStorage.setItem(
+		"event_id",
+		currentEventId
+		);
 
-      cancelButton.hidden = false;
+eventStatus.textContent = "ACTIVO";
 
-    },
+cancelButton.hidden = false;
+sosButton.disabled = true;
+},
 
-    () => {
-      gpsStatus.textContent = "ERROR";
-      alert("No fue posible obtener GPS");
-    },
+	() => {
 
-    {
-      enableHighAccuracy: true,
-      timeout: 10000
-    }
-  );
+		gpsStatus.textContent = "ERROR";
+		statusLabel.textContent = "Error obteniendo GPS";
+		sosButton.disabled = false;
+
+	},
+
+{
+enableHighAccuracy: true,
+		    timeout: 10000
+}
+);
 }
 
 async function cancelSOS() {
-
-  await fetch(
-    `${API}/public/mobile/cancel`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        event_id: currentEventId,
-        user_id: userId
-      })
-    }
-  );
-
-  eventStatus.textContent = "CANCELADO";
-
-  cancelButton.hidden = true;
-
-  localStorage.removeItem("event_id");
-
-  currentEventId = null;
+	statusLabel.textContent = "Cancelando alerta...";
+	await fetch(
+			`${API}/public/mobile/cancel`,
+			{
+method: "POST",
+headers: {
+"Content-Type": "application/json"
+},
+body: JSON.stringify({
+event_id: currentEventId,
+user_id: userId
+})
 }
+);
+
+	eventStatus.textContent = "CANCELADO";
+	statusLabel.textContent = "Alerta cancelada";
+	sosButton.disabled = false;
+
+	cancelButton.hidden = true;
+
+	localStorage.removeItem("event_id");
+
+	currentEventId = null;
+	}
 
 async function refreshStatus() {
 
-  if (!currentEventId) return;
+	if (!currentEventId) return;
 
-  const res = await fetch(
-    `${API}/public/mobile/status/${currentEventId}`
-  );
+	const res = await fetch(
+			`${API}/public/mobile/status/${currentEventId}`
+			);
 
-  const data = await res.json();
+	const data = await res.json();
+	eventStatus.textContent = data.event.state;
+	statusLabel.textContent = "Estado: " + data.event.state;
 
-  eventStatus.textContent =
-    data.event.state;
+	if (
+			data.event.state === "CANCELLED" ||
+			data.event.state === "CLOSED"
+	   ) {
+		currentEventId = null;
+
+		localStorage.removeItem("event_id");
+
+		cancelButton.hidden = true;
+		sosButton.disabled = false;
+	}
+
+
+
 }
 
 sosButton.onclick = sendSOS;
@@ -119,9 +151,14 @@ sosButton.onclick = sendSOS;
 cancelButton.onclick = cancelSOS;
 
 setInterval(refreshStatus, 5000);
-
 currentEventId = localStorage.getItem("event_id");
 
 if (currentEventId) {
-  cancelButton.hidden = false;
+	cancelButton.hidden = false;
+	sosButton.disabled = true;
+
+	statusLabel.textContent =
+		"Recuperando alerta activa...";
+
+	refreshStatus();
 }

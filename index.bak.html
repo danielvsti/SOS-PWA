@@ -3,32 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <title>Sistema SOS Municipal</title>
+
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
+
   <meta name="theme-color" content="#dc2626">
 </head>
+
 <body>
+
   <div class="container">
-    <img src="logo.png" class="logo" alt="VS&TI">
+
+    <img src="logo.png" class="logo">
+
     <h1>Sistema SOS Municipal</h1>
 
-    <div id="status">Lista para usar</div>
+    <div id="status">Inicializando...</div>
 
-    <button id="sosButton">SOS</button>
+    <button id="sosButton">
+      SOS
+    </button>
 
     <button id="cancelButton" hidden>
       Cancelar alerta
     </button>
 
     <div class="info">
-      <div>GPS: <span id="gpsStatus">pendiente</span></div>
+      <div>GPS: <span id="gpsStatus">-</span></div>
       <div>Precisión: <span id="accuracy">-</span></div>
       <div>Estado: <span id="eventStatus">NORMAL</span></div>
-      <div>Evento: <span id="eventId">-</span></div>
     </div>
+
   </div>
 
   <script src="app.js"></script>
+
 </body>
 </html>
