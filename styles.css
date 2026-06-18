@@ -1,0 +1,41 @@
+body {
+  margin: 0;
+  background: #f3f4f6;
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  padding: 24px;
+  text-align: center;
+}
+
+.logo {
+  max-width: 240px;
+  margin-bottom: 20px;
+}
+
+#sosButton {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: none;
+  background: #dc2626;
+  color: white;
+  font-size: 48px;
+  font-weight: bold;
+  margin: 30px auto;
+}
+
+#cancelButton {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 12px;
+  background: #374151;
+  color: white;
+}
+
+.info {
+  margin-top: 30px;
+  font-size: 20px;
+  text-align: left;
+}
