@@ -12,6 +12,8 @@ const gpsStatus = document.getElementById("gpsStatus");
 const accuracyLabel = document.getElementById("accuracy");
 const eventStatus = document.getElementById("eventStatus");
 const statusLabel = document.getElementById("status");
+const eventIdLabel =
+  document.getElementById("eventId");
 
 let currentEventId = null;
 statusLabel.textContent = "Lista para usar";
@@ -20,7 +22,7 @@ statusLabel.textContent = "Lista para usar";
 
 async function sendSOS() {
 
-	if (currentEventId) {
+if (currentEventId) {
 		statusLabel.textContent = "Ya existe una alerta activa";
 		return;
 	}
@@ -64,6 +66,8 @@ body: JSON.stringify(payload)
 const data = await res.json();
 
 currentEventId = data.event_id;
+eventIdLabel.textContent = currentEventId;
+
 statusLabel.textContent = "Alerta enviada";
 localStorage.setItem(
 		"event_id",
@@ -116,6 +120,10 @@ user_id: userId
 	localStorage.removeItem("event_id");
 
 	currentEventId = null;
+
+eventIdLabel.textContent = "-";
+
+
 	}
 
 async function refreshStatus() {
@@ -151,14 +159,26 @@ sosButton.onclick = sendSOS;
 cancelButton.onclick = cancelSOS;
 
 setInterval(refreshStatus, 5000);
+
+
+
+/*kotto temporal */
+localStorage.removeItem("event_id");
+/* hasta aqui temporalmente */
+
 currentEventId = localStorage.getItem("event_id");
 
 if (currentEventId) {
-	cancelButton.hidden = false;
-	sosButton.disabled = true;
 
-	statusLabel.textContent =
-		"Recuperando alerta activa...";
+  eventIdLabel.textContent = currentEventId;
 
-	refreshStatus();
+  cancelButton.hidden = false;
+  sosButton.disabled = true;
+
+  statusLabel.textContent =
+    "Recuperando alerta activa...";
+
+  refreshStatus();
 }
+
+
