@@ -9,7 +9,6 @@ const categoryPanel = document.getElementById("categoryPanel");
 const activePanel = document.getElementById("activePanel");
 const textPanel = document.getElementById("textPanel");
 const audioPanel = document.getElementById("audioPanel");
-const callPanel = document.getElementById("callPanel");
 
 const sosButton = document.getElementById("sosButton");
 const confirmButton = document.getElementById("confirmButton");
@@ -22,14 +21,8 @@ const videoCallButton = document.getElementById("videoCallButton");
 const videoUploadButton = document.getElementById("videoUploadButton");
 const videoInput = document.getElementById("videoInput");
 const sendTextButton = document.getElementById("sendTextButton");
-const closeCallButton = document.getElementById("closeCallButton");
 
 const textMessage = document.getElementById("textMessage");
-const callTitle = document.getElementById("callTitle");
-const jitsiContainer = document.getElementById("jitsiContainer");
-const callFallback = document.getElementById("callFallback");
-const openCallExternalButton = document.getElementById("openCallExternalButton");
-const copyCallLinkButton = document.getElementById("copyCallLinkButton");
 const audioStatus = document.getElementById("audioStatus");
 
 const gpsStatus = document.getElementById("gpsStatus");
@@ -47,8 +40,6 @@ let mediaRecorder = null;
 let audioChunks = [];
 let audioStream = null;
 let recordingTimeout = null;
-let jitsiApi = null;
-let currentCallUrl = null;
 
 const alertDefinitions = {
   SOS_MANUAL: {
@@ -272,7 +263,6 @@ async function cancelSOS() {
     eventIdLabel.textContent = "-";
     updateTicketLabels();
     statusLabel.textContent = "Alerta cancelada";
-    closeCall();
     showHome();
   } catch (error) {
     console.error(error);
@@ -314,7 +304,6 @@ async function refreshStatus() {
       localStorage.removeItem("ticket_id");
       eventIdLabel.textContent = "-";
       updateTicketLabels();
-      closeCall();
       showHome();
     }
   } catch (error) {
@@ -405,6 +394,40 @@ async function uploadMedia(mediaType, blob, fileName) {
     : "Video enviado a la central";
 }
 
+function getPreferredAudioOptions() {
+  if (!window.MediaRecorder) return {};
+
+  const candidates = [
+    "audio/mp4",
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus"
+  ];
+
+  for (const mimeType of candidates) {
+    if (MediaRecorder.isTypeSupported(mimeType)) {
+      return { mimeType };
+    }
+  }
+
+  return {};
+}
+
+function extensionForMime(mimeType, fallback) {
+  const clean = String(mimeType || "").split(";")[0];
+  const map = {
+    "audio/mp4": "m4a",
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/wav": "wav",
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm"
+  };
+
+  return map[clean] || fallback;
+}
+
 async function toggleAudioRecording() {
   if (!requireTicket()) return;
 
@@ -422,10 +445,7 @@ async function toggleAudioRecording() {
     audioChunks = [];
     audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    const options = MediaRecorder.isTypeSupported("audio/webm")
-      ? { mimeType: "audio/webm" }
-      : {};
-
+    const options = getPreferredAudioOptions();
     mediaRecorder = new MediaRecorder(audioStream, options);
 
     mediaRecorder.ondataavailable = (event) => {
@@ -440,12 +460,12 @@ async function toggleAudioRecording() {
       audioPanel.hidden = true;
       audioButton.innerHTML = "🎙️<span>Mensaje audio</span>";
 
-      const audioBlob = new Blob(audioChunks, {
-        type: mediaRecorder.mimeType || "audio/webm"
-      });
+      const mimeType = mediaRecorder.mimeType || audioChunks[0]?.type || "audio/webm";
+      const audioBlob = new Blob(audioChunks, { type: mimeType });
+      const ext = extensionForMime(mimeType, "webm");
 
       try {
-        await uploadMedia("audio", audioBlob, `audio-${Date.now()}.webm`);
+        await uploadMedia("audio", audioBlob, `audio-${Date.now()}.${ext}`);
       } catch (error) {
         console.error(error);
         statusLabel.textContent = "No se pudo enviar el audio";
@@ -489,82 +509,12 @@ async function uploadSelectedVideo() {
   }
 }
 
-function disposeJitsi() {
-  if (jitsiApi) {
-    try {
-      jitsiApi.dispose();
-    } catch (error) {
-      console.warn("No se pudo cerrar Jitsi limpiamente", error);
-    }
-  }
-
-  jitsiApi = null;
-
-  if (jitsiContainer) {
-    jitsiContainer.innerHTML = "";
-  }
-}
-
-function openCallFallback(message) {
-  console.warn(message || "Jitsi fallback");
-  disposeJitsi();
-  callFallback.hidden = false;
-  jitsiContainer.hidden = true;
-}
-
-async function startEmbeddedJitsi(room, mode) {
-  disposeJitsi();
-  callFallback.hidden = true;
-  jitsiContainer.hidden = false;
-
-  if (!window.JitsiMeetExternalAPI) {
-    openCallFallback("JitsiMeetExternalAPI no está disponible");
-    return;
-  }
-
-  try {
-    jitsiApi = new window.JitsiMeetExternalAPI("meet.jit.si", {
-      roomName: room,
-      parentNode: jitsiContainer,
-      width: "100%",
-      height: "100%",
-      configOverwrite: {
-        prejoinPageEnabled: false,
-        startWithVideoMuted: mode === "voice",
-        startWithAudioMuted: false,
-        disableDeepLinking: true
-      },
-      interfaceConfigOverwrite: {
-        MOBILE_APP_PROMO: false,
-        SHOW_JITSI_WATERMARK: false,
-        SHOW_BRAND_WATERMARK: false
-      },
-      userInfo: {
-        displayName: "Vecino SOS"
-      }
-    });
-
-    jitsiApi.addEventListener("readyToClose", closeCall);
-    jitsiApi.addEventListener("videoConferenceJoined", () => {
-      statusLabel.textContent = "Comunicación abierta con central";
-    });
-
-    setTimeout(() => {
-      if (!jitsiApi || jitsiContainer.querySelector("iframe")) return;
-      openCallFallback("Jitsi no creó el iframe de llamada");
-    }, 5000);
-  } catch (error) {
-    console.error(error);
-    openCallFallback("Error cargando llamada embebida");
-  }
-}
-
-async function startCall(mode) {
+async function requestCall(mode) {
   if (!requireTicket()) return;
 
   statusLabel.textContent = mode === "voice"
-    ? "Iniciando llamada de voz..."
-    : "Iniciando videollamada...";
+    ? "Solicitando llamada de voz..."
+    : "Solicitando videollamada...";
 
   try {
     const res = await fetch(`${API}/tickets/${currentTicketId}/call-start`, {
@@ -583,49 +533,18 @@ async function startCall(mode) {
       throw new Error("Error HTTP " + res.status);
     }
 
-    const data = await res.json();
-    currentCallUrl = data.room_url;
+    await res.json();
+    statusLabel.textContent = mode === "voice"
+      ? "Solicitud de llamada enviada a la central"
+      : "Solicitud de videollamada enviada a la central";
 
-    callTitle.textContent = mode === "voice"
-      ? `Llamada voz · ${shortTicketId(currentTicketId)}`
-      : `Videollamada · ${shortTicketId(currentTicketId)}`;
-
-    callPanel.hidden = false;
-    await startEmbeddedJitsi(data.room, mode);
+    alert(mode === "voice"
+      ? "La central recibió tu solicitud de llamada. Mantente en esta pantalla y espera instrucciones."
+      : "La central recibió tu solicitud de videollamada. Mantente en esta pantalla y espera instrucciones."
+    );
   } catch (error) {
     console.error(error);
-    statusLabel.textContent = "No se pudo iniciar la comunicación";
-    openCallFallback("No se pudo iniciar la comunicación");
-  }
-}
-
-function closeCall() {
-  disposeJitsi();
-  callFallback.hidden = true;
-  jitsiContainer.hidden = false;
-  callPanel.hidden = true;
-}
-
-function openCallExternal() {
-  if (!currentCallUrl) {
-    alert("Aún no hay enlace de llamada");
-    return;
-  }
-
-  window.location.href = currentCallUrl;
-}
-
-async function copyCallLink() {
-  if (!currentCallUrl) {
-    alert("Aún no hay enlace de llamada");
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(currentCallUrl);
-    alert("Enlace copiado");
-  } catch (error) {
-    alert(currentCallUrl);
+    statusLabel.textContent = "No se pudo enviar la solicitud";
   }
 }
 
@@ -647,8 +566,8 @@ sosButton.addEventListener("click", showCategories);
 confirmButton.addEventListener("click", sendSOS);
 backButton.addEventListener("click", showHome);
 cancelButton.addEventListener("click", cancelSOS);
-voiceButton.addEventListener("click", () => startCall("voice"));
-videoCallButton.addEventListener("click", () => startCall("video"));
+voiceButton.addEventListener("click", () => requestCall("voice"));
+videoCallButton.addEventListener("click", () => requestCall("video"));
 textButton.addEventListener("click", () => {
   textPanel.hidden = !textPanel.hidden;
 });
@@ -656,9 +575,6 @@ sendTextButton.addEventListener("click", sendTextMessage);
 audioButton.addEventListener("click", toggleAudioRecording);
 videoUploadButton.addEventListener("click", () => videoInput.click());
 videoInput.addEventListener("change", uploadSelectedVideo);
-closeCallButton.addEventListener("click", closeCall);
-openCallExternalButton.addEventListener("click", openCallExternal);
-copyCallLinkButton.addEventListener("click", copyCallLink);
 
 setInterval(refreshStatus, 5000);
 

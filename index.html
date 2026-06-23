@@ -94,7 +94,7 @@
 
       <div class="communication-grid">
         <button id="voiceButton" class="comm-button" type="button">
-          📞<span>Llamada voz</span>
+          📞<span>Solicitar llamada</span>
         </button>
 
         <button id="textButton" class="comm-button" type="button">
@@ -106,7 +106,7 @@
         </button>
 
         <button id="videoCallButton" class="comm-button" type="button">
-          🎥<span>Videollamada</span>
+          🎥<span>Solicitar videollamada</span>
         </button>
 
         <button id="videoUploadButton" class="comm-button wide" type="button">
@@ -141,30 +141,6 @@
       <div>Evento: <span id="eventId">-</span></div>
     </section>
   </main>
-
-  <section id="callPanel" class="call-panel" hidden>
-    <div class="call-header">
-      <strong id="callTitle">Comunicación con central</strong>
-      <button id="closeCallButton" type="button">✖</button>
-    </div>
-
-    <div id="jitsiContainer" class="jitsi-container"></div>
-
-    <div id="callFallback" class="call-fallback" hidden>
-      <h2>No se pudo cargar la llamada dentro de la PWA</h2>
-      <p>
-        El navegador puede bloquear cámara/micrófono dentro del panel. Puedes entrar a la misma sala desde el navegador.
-      </p>
-      <button id="openCallExternalButton" class="primary-action" type="button">
-        Entrar a la sala
-      </button>
-      <button id="copyCallLinkButton" class="secondary-action" type="button">
-        Copiar enlace
-      </button>
-    </div>
-  </section>
-
-  <script src="https://meet.jit.si/external_api.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
