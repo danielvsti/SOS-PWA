@@ -39,3 +39,38 @@ body {
   font-size: 20px;
   text-align: left;
 }
+
+.emergency-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.emergency-option {
+
+  border: 2px solid #d1d5db;
+
+  background: white;
+
+  border-radius: 12px;
+
+  padding: 12px;
+
+  font-size: 16px;
+
+  cursor: pointer;
+
+  transition: all .2s;
+}
+
+.emergency-option.active {
+
+  background: #dc2626;
+
+  color: white;
+
+  border-color: #dc2626;
+}
+
+

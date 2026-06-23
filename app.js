@@ -16,6 +16,51 @@ const eventIdLabel =
   document.getElementById("eventId");
 
 let currentEventId = null;
+
+let selectedAlertType = "SOS_MANUAL";
+
+const alertDefinitions = {
+  SOS_MANUAL: {
+    title: "SOS General",
+    priority: 1
+  },
+
+  MEDICAL: {
+    title: "Emergencia Médica",
+    priority: 1
+  },
+
+  FIRE: {
+    title: "Incendio",
+    priority: 1
+  },
+
+  SECURITY: {
+    title: "Seguridad Ciudadana",
+    priority: 2
+  },
+
+  VIF: {
+    title: "Violencia Intrafamiliar",
+    priority: 1
+  },
+
+  TRAFFIC_ACCIDENT: {
+    title: "Accidente de Tránsito",
+    priority: 2
+  },
+
+  URBAN_RISK: {
+    title: "Riesgo Urbano",
+    priority: 3
+  },
+
+  OTHER: {
+    title: "Otro Incidente",
+    priority: 3
+  }
+};
+
 statusLabel.textContent = "Lista para usar";
 
 
@@ -39,15 +84,35 @@ if (currentEventId) {
 			gpsStatus.textContent = "OK";
 			statusLabel.textContent = "Enviando alerta...";
 
-			const payload = {
-user_id: userId,
-name: "Usuario móvil",
-source: "mobile_pwa",
-latitude: position.coords.latitude,
-longitude: position.coords.longitude,
-accuracy: Math.round(position.coords.accuracy),
-battery: null
+
+const payload = {
+  user_id: userId,
+
+  name: "Usuario móvil",
+
+  source: "mobile_pwa",
+
+  alert_type: selectedAlertType,
+
+  title:
+    alertDefinitions[selectedAlertType].title,
+
+  priority:
+    alertDefinitions[selectedAlertType].priority,
+
+  latitude: position.coords.latitude,
+
+  longitude: position.coords.longitude,
+
+  accuracy: Math.round(
+    position.coords.accuracy
+  ),
+
+  battery: null
 };
+
+
+
 
 accuracyLabel.textContent =
 payload.accuracy + " m";
@@ -153,6 +218,34 @@ async function refreshStatus() {
 
 
 }
+
+
+
+document
+  .querySelectorAll(".emergency-option")
+  .forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      document
+        .querySelectorAll(".emergency-option")
+        .forEach(b =>
+          b.classList.remove("active")
+        );
+
+      button.classList.add("active");
+
+      selectedAlertType =
+        button.dataset.type;
+
+      statusLabel.textContent =
+        "Tipo seleccionado: " +
+        alertDefinitions[selectedAlertType].title;
+    });
+
+  });
+
+
 
 sosButton.onclick = sendSOS;
 
