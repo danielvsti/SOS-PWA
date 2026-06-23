@@ -9,74 +9,89 @@
   <meta name="theme-color" content="#dc2626">
 </head>
 <body>
-  <div class="container">
+  <main class="container">
     <img src="logo.png" class="logo" alt="VS&TI">
     <h1>Sistema SOS Municipal</h1>
 
-    <div id="status">Lista para usar</div>
+    <div id="status" class="status-pill">Lista para usar</div>
 
+    <section id="homePanel" class="home-panel">
+      <button id="sosButton" type="button" aria-label="Activar SOS">
+        SOS
+      </button>
+      <p class="helper-text">
+        Presiona el botón en caso de emergencia.
+      </p>
+    </section>
 
+    <section id="categoryPanel" class="category-panel" hidden>
+      <h2>¿Qué tipo de emergencia quieres reportar?</h2>
+      <p class="helper-text">
+        Selecciona una categoría y luego confirma el envío.
+      </p>
 
+      <div class="emergency-grid">
+        <button class="emergency-option active" type="button" data-type="SOS_MANUAL">
+          <span class="emoji">🚨</span>
+          <span>SOS General</span>
+        </button>
 
-<div class="emergency-grid">
+        <button class="emergency-option" type="button" data-type="MEDICAL">
+          <span class="emoji">🚑</span>
+          <span>Médica</span>
+        </button>
 
-<button class="emergency-option active"
-  data-type="SOS_MANUAL">
-🚨 SOS
-</button>
+        <button class="emergency-option" type="button" data-type="FIRE">
+          <span class="emoji">🔥</span>
+          <span>Incendio</span>
+        </button>
 
-<button class="emergency-option"
-  data-type="MEDICAL">
-🚑 Médica
-</button>
+        <button class="emergency-option" type="button" data-type="SECURITY">
+          <span class="emoji">👮</span>
+          <span>Seguridad</span>
+        </button>
 
-<button class="emergency-option"
-  data-type="FIRE">
-🔥 Incendio
-</button>
+        <button class="emergency-option" type="button" data-type="VIF">
+          <span class="emoji">🏠</span>
+          <span>VIF</span>
+        </button>
 
-<button class="emergency-option"
-  data-type="SECURITY">
-👮 Seguridad
-</button>
+        <button class="emergency-option" type="button" data-type="TRAFFIC_ACCIDENT">
+          <span class="emoji">🚗</span>
+          <span>Accidente</span>
+        </button>
 
-<button class="emergency-option"
-  data-type="VIF">
-🏠 VIF
-</button>
+        <button class="emergency-option" type="button" data-type="URBAN_RISK">
+          <span class="emoji">⚠️</span>
+          <span>Riesgo</span>
+        </button>
 
-<button class="emergency-option"
-  data-type="TRAFFIC_ACCIDENT">
-🚗 Accidente
-</button>
+        <button class="emergency-option" type="button" data-type="OTHER">
+          <span class="emoji">📝</span>
+          <span>Otro</span>
+        </button>
+      </div>
 
-<button class="emergency-option"
-  data-type="URBAN_RISK">
-⚠️ Riesgo
-</button>
+      <button id="confirmButton" class="primary-action" type="button">
+        Enviar alerta
+      </button>
 
-<button class="emergency-option"
-  data-type="OTHER">
-📝 Otro
-</button>
+      <button id="backButton" class="secondary-action" type="button">
+        Volver
+      </button>
+    </section>
 
-</div>
-
-
-
-<button id="sosButton">SOS</button>
-
-<button id="cancelButton" hidden>
+    <button id="cancelButton" class="danger-secondary" type="button" hidden>
       Cancelar alerta
     </button>
 
-    <div class="info">
+    <section class="info" aria-label="Información de alerta">
       <div>GPS: <span id="gpsStatus">pendiente</span></div>
       <div>Precisión: <span id="accuracy">-</span></div>
       <div>Estado: <span id="eventStatus">NORMAL</span></div>
       <div>Evento: <span id="eventId">-</span></div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script src="app.js"></script>
 </body>

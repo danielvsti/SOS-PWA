@@ -1,0 +1,76 @@
+body {
+  margin: 0;
+  background: #f3f4f6;
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  padding: 24px;
+  text-align: center;
+}
+
+.logo {
+  max-width: 240px;
+  margin-bottom: 20px;
+}
+
+#sosButton {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: none;
+  background: #dc2626;
+  color: white;
+  font-size: 48px;
+  font-weight: bold;
+  margin: 30px auto;
+}
+
+#cancelButton {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 12px;
+  background: #374151;
+  color: white;
+}
+
+.info {
+  margin-top: 30px;
+  font-size: 20px;
+  text-align: left;
+}
+
+.emergency-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.emergency-option {
+
+  border: 2px solid #d1d5db;
+
+  background: white;
+
+  border-radius: 12px;
+
+  padding: 12px;
+
+  font-size: 16px;
+
+  cursor: pointer;
+
+  transition: all .2s;
+}
+
+.emergency-option.active {
+
+  background: #dc2626;
+
+  color: white;
+
+  border-color: #dc2626;
+}
+
+

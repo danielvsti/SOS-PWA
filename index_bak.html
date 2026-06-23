@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema SOS Municipal</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#dc2626">
+</head>
+<body>
+  <div class="container">
+    <img src="logo.png" class="logo" alt="VS&TI">
+    <h1>Sistema SOS Municipal</h1>
+
+    <div id="status">Lista para usar</div>
+
+
+
+
+<div class="emergency-grid">
+
+<button class="emergency-option active"
+  data-type="SOS_MANUAL">
+🚨 SOS
+</button>
+
+<button class="emergency-option"
+  data-type="MEDICAL">
+🚑 Médica
+</button>
+
+<button class="emergency-option"
+  data-type="FIRE">
+🔥 Incendio
+</button>
+
+<button class="emergency-option"
+  data-type="SECURITY">
+👮 Seguridad
+</button>
+
+<button class="emergency-option"
+  data-type="VIF">
+🏠 VIF
+</button>
+
+<button class="emergency-option"
+  data-type="TRAFFIC_ACCIDENT">
+🚗 Accidente
+</button>
+
+<button class="emergency-option"
+  data-type="URBAN_RISK">
+⚠️ Riesgo
+</button>
+
+<button class="emergency-option"
+  data-type="OTHER">
+📝 Otro
+</button>
+
+</div>
+
+
+
+<button id="sosButton">SOS</button>
+
+<button id="cancelButton" hidden>
+      Cancelar alerta
+    </button>
+
+    <div class="info">
+      <div>GPS: <span id="gpsStatus">pendiente</span></div>
+      <div>Precisión: <span id="accuracy">-</span></div>
+      <div>Estado: <span id="eventStatus">NORMAL</span></div>
+      <div>Evento: <span id="eventId">-</span></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
