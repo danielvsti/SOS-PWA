@@ -147,14 +147,24 @@
       <strong id="callTitle">Comunicación con central</strong>
       <button id="closeCallButton" type="button">✖</button>
     </div>
-    <iframe
-      id="callFrame"
-      title="Comunicación con central"
-      allow="camera; microphone; fullscreen; display-capture; autoplay"
-      referrerpolicy="no-referrer-when-downgrade">
-    </iframe>
+
+    <div id="jitsiContainer" class="jitsi-container"></div>
+
+    <div id="callFallback" class="call-fallback" hidden>
+      <h2>No se pudo cargar la llamada dentro de la PWA</h2>
+      <p>
+        El navegador puede bloquear cámara/micrófono dentro del panel. Puedes entrar a la misma sala desde el navegador.
+      </p>
+      <button id="openCallExternalButton" class="primary-action" type="button">
+        Entrar a la sala
+      </button>
+      <button id="copyCallLinkButton" class="secondary-action" type="button">
+        Copiar enlace
+      </button>
+    </div>
   </section>
 
+  <script src="https://meet.jit.si/external_api.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -25,8 +25,11 @@ const sendTextButton = document.getElementById("sendTextButton");
 const closeCallButton = document.getElementById("closeCallButton");
 
 const textMessage = document.getElementById("textMessage");
-const callFrame = document.getElementById("callFrame");
 const callTitle = document.getElementById("callTitle");
+const jitsiContainer = document.getElementById("jitsiContainer");
+const callFallback = document.getElementById("callFallback");
+const openCallExternalButton = document.getElementById("openCallExternalButton");
+const copyCallLinkButton = document.getElementById("copyCallLinkButton");
 const audioStatus = document.getElementById("audioStatus");
 
 const gpsStatus = document.getElementById("gpsStatus");
@@ -44,6 +47,8 @@ let mediaRecorder = null;
 let audioChunks = [];
 let audioStream = null;
 let recordingTimeout = null;
+let jitsiApi = null;
+let currentCallUrl = null;
 
 const alertDefinitions = {
   SOS_MANUAL: {
@@ -484,6 +489,76 @@ async function uploadSelectedVideo() {
   }
 }
 
+function disposeJitsi() {
+  if (jitsiApi) {
+    try {
+      jitsiApi.dispose();
+    } catch (error) {
+      console.warn("No se pudo cerrar Jitsi limpiamente", error);
+    }
+  }
+
+  jitsiApi = null;
+
+  if (jitsiContainer) {
+    jitsiContainer.innerHTML = "";
+  }
+}
+
+function openCallFallback(message) {
+  console.warn(message || "Jitsi fallback");
+  disposeJitsi();
+  callFallback.hidden = false;
+  jitsiContainer.hidden = true;
+}
+
+async function startEmbeddedJitsi(room, mode) {
+  disposeJitsi();
+  callFallback.hidden = true;
+  jitsiContainer.hidden = false;
+
+  if (!window.JitsiMeetExternalAPI) {
+    openCallFallback("JitsiMeetExternalAPI no está disponible");
+    return;
+  }
+
+  try {
+    jitsiApi = new window.JitsiMeetExternalAPI("meet.jit.si", {
+      roomName: room,
+      parentNode: jitsiContainer,
+      width: "100%",
+      height: "100%",
+      configOverwrite: {
+        prejoinPageEnabled: false,
+        startWithVideoMuted: mode === "voice",
+        startWithAudioMuted: false,
+        disableDeepLinking: true
+      },
+      interfaceConfigOverwrite: {
+        MOBILE_APP_PROMO: false,
+        SHOW_JITSI_WATERMARK: false,
+        SHOW_BRAND_WATERMARK: false
+      },
+      userInfo: {
+        displayName: "Vecino SOS"
+      }
+    });
+
+    jitsiApi.addEventListener("readyToClose", closeCall);
+    jitsiApi.addEventListener("videoConferenceJoined", () => {
+      statusLabel.textContent = "Comunicación abierta con central";
+    });
+
+    setTimeout(() => {
+      if (!jitsiApi || jitsiContainer.querySelector("iframe")) return;
+      openCallFallback("Jitsi no creó el iframe de llamada");
+    }, 5000);
+  } catch (error) {
+    console.error(error);
+    openCallFallback("Error cargando llamada embebida");
+  }
+}
+
 async function startCall(mode) {
   if (!requireTicket()) return;
 
@@ -509,21 +584,49 @@ async function startCall(mode) {
     }
 
     const data = await res.json();
+    currentCallUrl = data.room_url;
+
     callTitle.textContent = mode === "voice"
       ? `Llamada voz · ${shortTicketId(currentTicketId)}`
       : `Videollamada · ${shortTicketId(currentTicketId)}`;
-    callFrame.src = data.room_url;
+
     callPanel.hidden = false;
-    statusLabel.textContent = "Comunicación abierta con central";
+    await startEmbeddedJitsi(data.room, mode);
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo iniciar la comunicación";
+    openCallFallback("No se pudo iniciar la comunicación");
   }
 }
 
 function closeCall() {
-  callFrame.src = "about:blank";
+  disposeJitsi();
+  callFallback.hidden = true;
+  jitsiContainer.hidden = false;
   callPanel.hidden = true;
+}
+
+function openCallExternal() {
+  if (!currentCallUrl) {
+    alert("Aún no hay enlace de llamada");
+    return;
+  }
+
+  window.location.href = currentCallUrl;
+}
+
+async function copyCallLink() {
+  if (!currentCallUrl) {
+    alert("Aún no hay enlace de llamada");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(currentCallUrl);
+    alert("Enlace copiado");
+  } catch (error) {
+    alert(currentCallUrl);
+  }
 }
 
 document.querySelectorAll(".emergency-option").forEach(button => {
@@ -554,6 +657,8 @@ audioButton.addEventListener("click", toggleAudioRecording);
 videoUploadButton.addEventListener("click", () => videoInput.click());
 videoInput.addEventListener("change", uploadSelectedVideo);
 closeCallButton.addEventListener("click", closeCall);
+openCallExternalButton.addEventListener("click", openCallExternal);
+copyCallLinkButton.addEventListener("click", copyCallLink);
 
 setInterval(refreshStatus, 5000);
 
