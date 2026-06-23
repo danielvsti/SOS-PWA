@@ -9,6 +9,13 @@ const categoryPanel = document.getElementById("categoryPanel");
 const activePanel = document.getElementById("activePanel");
 const textPanel = document.getElementById("textPanel");
 const audioPanel = document.getElementById("audioPanel");
+const recordingBanner = document.getElementById("recordingBanner");
+const recordingTimer = document.getElementById("recordingTimer");
+const audioInlineTimer = document.getElementById("audioInlineTimer");
+const incomingCallPanel = document.getElementById("incomingCallPanel");
+const incomingCallIcon = document.getElementById("incomingCallIcon");
+const incomingCallTitle = document.getElementById("incomingCallTitle");
+const incomingCallText = document.getElementById("incomingCallText");
 
 const sosButton = document.getElementById("sosButton");
 const confirmButton = document.getElementById("confirmButton");
@@ -21,6 +28,9 @@ const videoCallButton = document.getElementById("videoCallButton");
 const videoUploadButton = document.getElementById("videoUploadButton");
 const videoInput = document.getElementById("videoInput");
 const sendTextButton = document.getElementById("sendTextButton");
+const stopAudioButton = document.getElementById("stopAudioButton");
+const acceptCallButton = document.getElementById("acceptCallButton");
+const rejectCallButton = document.getElementById("rejectCallButton");
 
 const textMessage = document.getElementById("textMessage");
 const audioStatus = document.getElementById("audioStatus");
@@ -40,6 +50,10 @@ let mediaRecorder = null;
 let audioChunks = [];
 let audioStream = null;
 let recordingTimeout = null;
+let recordingTimerInterval = null;
+let recordingStartedAt = null;
+let activeIncomingCall = null;
+let handledCallActionIds = JSON.parse(localStorage.getItem("handled_call_action_ids") || "[]");
 
 const alertDefinitions = {
   SOS_MANUAL: {
@@ -84,6 +98,101 @@ function shortTicketId(ticketId) {
 function updateTicketLabels() {
   ticketIdLabel.textContent = currentTicketId || "-";
   ticketIdShortLabel.textContent = shortTicketId(currentTicketId);
+}
+
+
+function saveHandledCallActionIds() {
+  localStorage.setItem("handled_call_action_ids", JSON.stringify(handledCallActionIds.slice(-40)));
+}
+
+function formatRecordingTime(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function updateRecordingTimer() {
+  const value = formatRecordingTime(Date.now() - recordingStartedAt);
+  recordingTimer.textContent = value;
+  audioInlineTimer.textContent = value;
+}
+
+function startRecordingUI() {
+  recordingStartedAt = Date.now();
+  updateRecordingTimer();
+  recordingBanner.hidden = false;
+  audioPanel.hidden = false;
+  audioButton.classList.add("recording-active");
+  navigator.vibrate?.(80);
+
+  clearInterval(recordingTimerInterval);
+  recordingTimerInterval = setInterval(updateRecordingTimer, 500);
+}
+
+function stopRecordingUI() {
+  clearInterval(recordingTimerInterval);
+  recordingTimerInterval = null;
+  recordingBanner.hidden = true;
+  audioPanel.hidden = true;
+  audioButton.classList.remove("recording-active");
+  audioButton.innerHTML = "🎙️<span>Mensaje audio</span>";
+  navigator.vibrate?.([60, 80, 60]);
+}
+
+function showIncomingCall(request) {
+  if (!request || handledCallActionIds.includes(request.id)) return;
+
+  activeIncomingCall = request;
+  const isVideo = request.mode === "video";
+
+  incomingCallIcon.textContent = isVideo ? "🎥" : "📞";
+  incomingCallTitle.textContent = isVideo
+    ? "La central solicita videollamada"
+    : "La central solicita llamada de voz";
+  incomingCallText.textContent = isVideo
+    ? "La central quiere iniciar una videollamada asociada a tu emergencia."
+    : "La central quiere comunicarse contigo por voz dentro del caso.";
+
+  incomingCallPanel.hidden = false;
+  navigator.vibrate?.([180, 120, 180]);
+}
+
+async function respondIncomingCall(response) {
+  if (!activeIncomingCall || !currentTicketId) {
+    incomingCallPanel.hidden = true;
+    return;
+  }
+
+  const request = activeIncomingCall;
+  incomingCallPanel.hidden = true;
+  activeIncomingCall = null;
+
+  try {
+    const res = await fetch(`${API}/tickets/${currentTicketId}/call-response`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_action_id: request.id,
+        response,
+        mode: request.mode,
+        sender_role: "NEIGHBOR",
+        sender_name: "Vecino SOS"
+      })
+    });
+
+    if (!res.ok) throw new Error("Error HTTP " + res.status);
+
+    handledCallActionIds.push(request.id);
+    saveHandledCallActionIds();
+
+    statusLabel.textContent = response === "ACCEPTED"
+      ? "Avisaste a la central que aceptas la comunicación"
+      : "Avisaste a la central que no puedes responder ahora";
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo responder a la central";
+  }
 }
 
 function showHome() {
@@ -292,6 +401,10 @@ async function refreshStatus() {
       updateTicketLabels();
     }
 
+    if (data?.pending_call_request) {
+      showIncomingCall(data.pending_call_request);
+    }
+
     eventStatus.textContent = state;
     statusLabel.textContent = currentTicketId
       ? `Estado: ${state} · ${shortTicketId(currentTicketId)}`
@@ -457,8 +570,7 @@ async function toggleAudioRecording() {
     mediaRecorder.onstop = async () => {
       clearTimeout(recordingTimeout);
       audioStream?.getTracks().forEach(track => track.stop());
-      audioPanel.hidden = true;
-      audioButton.innerHTML = "🎙️<span>Mensaje audio</span>";
+      stopRecordingUI();
 
       const mimeType = mediaRecorder.mimeType || audioChunks[0]?.type || "audio/webm";
       const audioBlob = new Blob(audioChunks, { type: mimeType });
@@ -473,10 +585,10 @@ async function toggleAudioRecording() {
     };
 
     mediaRecorder.start();
-    audioPanel.hidden = false;
-    audioStatus.textContent = "Toca nuevamente para detener y enviar. Máximo 30 segundos.";
+    audioStatus.textContent = "Mantén el teléfono cerca y describe qué está ocurriendo. Máximo 30 segundos.";
     audioButton.innerHTML = "⏹️<span>Detener audio</span>";
     statusLabel.textContent = "Grabando audio...";
+    startRecordingUI();
 
     recordingTimeout = setTimeout(() => {
       if (mediaRecorder?.state === "recording") {
@@ -573,6 +685,9 @@ textButton.addEventListener("click", () => {
 });
 sendTextButton.addEventListener("click", sendTextMessage);
 audioButton.addEventListener("click", toggleAudioRecording);
+stopAudioButton.addEventListener("click", toggleAudioRecording);
+acceptCallButton.addEventListener("click", () => respondIncomingCall("ACCEPTED"));
+rejectCallButton.addEventListener("click", () => respondIncomingCall("REJECTED"));
 videoUploadButton.addEventListener("click", () => videoInput.click());
 videoInput.addEventListener("change", uploadSelectedVideo);
 

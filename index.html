@@ -9,6 +9,24 @@
   <meta name="theme-color" content="#dc2626">
 </head>
 <body>
+  <div id="recordingBanner" class="recording-banner" hidden>
+    <span class="rec-dot"></span>
+    <span>Grabando audio</span>
+    <span id="recordingTimer">00:00</span>
+  </div>
+
+  <div id="incomingCallPanel" class="incoming-call-panel" hidden>
+    <div class="incoming-card">
+      <div id="incomingCallIcon" class="incoming-icon">📞</div>
+      <h2 id="incomingCallTitle">La central quiere comunicarse</h2>
+      <p id="incomingCallText">Tienes una solicitud de comunicación desde la central.</p>
+      <div class="incoming-actions">
+        <button id="acceptCallButton" class="accept-call" type="button">Aceptar</button>
+        <button id="rejectCallButton" class="reject-call" type="button">Rechazar</button>
+      </div>
+    </div>
+  </div>
+
   <main class="container">
     <img src="logo.png" class="logo" alt="VS&TI">
     <h1>Sistema SOS Municipal</h1>
@@ -121,9 +139,16 @@
         </button>
       </div>
 
-      <div id="audioPanel" class="message-box" hidden>
-        <strong>Grabando audio...</strong>
-        <p id="audioStatus">Toca nuevamente para detener y enviar.</p>
+      <div id="audioPanel" class="message-box recording-box" hidden>
+        <div class="recording-inline">
+          <span class="recording-inline-dot"></span>
+          <strong>Grabando audio</strong>
+          <span id="audioInlineTimer">00:00</span>
+        </div>
+        <p id="audioStatus">Mantén el teléfono cerca y describe qué está ocurriendo.</p>
+        <button id="stopAudioButton" class="audio-stop-button" type="button">
+          ⏹ Detener y enviar audio
+        </button>
       </div>
 
       <input id="videoInput" type="file" accept="video/*" capture="environment" hidden>
