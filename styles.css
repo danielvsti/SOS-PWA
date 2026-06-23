@@ -2,6 +2,14 @@
   box-sizing: border-box;
 }
 
+/* Corrige overlays/paneles con atributo hidden.
+   Sin esto, .call-panel { display:flex } puede pasar por encima de hidden
+   y dejar la PWA en pantalla negra con solo el botón cerrar. */
+[hidden] {
+  display: none !important;
+}
+
+
 body {
   margin: 0;
   min-height: 100vh;
