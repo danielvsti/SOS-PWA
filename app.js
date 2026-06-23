@@ -1,24 +1,49 @@
 const API = "https://sos.vsti.cl";
+const CONTROL_CENTER_CODE = "CC-VINA";
 
 const userId = localStorage.getItem("user_id") || crypto.randomUUID();
 localStorage.setItem("user_id", userId);
 
 const homePanel = document.getElementById("homePanel");
 const categoryPanel = document.getElementById("categoryPanel");
+const activePanel = document.getElementById("activePanel");
+const textPanel = document.getElementById("textPanel");
+const audioPanel = document.getElementById("audioPanel");
+const callPanel = document.getElementById("callPanel");
 
 const sosButton = document.getElementById("sosButton");
 const confirmButton = document.getElementById("confirmButton");
 const backButton = document.getElementById("backButton");
 const cancelButton = document.getElementById("cancelButton");
+const voiceButton = document.getElementById("voiceButton");
+const textButton = document.getElementById("textButton");
+const audioButton = document.getElementById("audioButton");
+const videoCallButton = document.getElementById("videoCallButton");
+const videoUploadButton = document.getElementById("videoUploadButton");
+const videoInput = document.getElementById("videoInput");
+const sendTextButton = document.getElementById("sendTextButton");
+const closeCallButton = document.getElementById("closeCallButton");
+
+const textMessage = document.getElementById("textMessage");
+const callFrame = document.getElementById("callFrame");
+const callTitle = document.getElementById("callTitle");
+const audioStatus = document.getElementById("audioStatus");
 
 const gpsStatus = document.getElementById("gpsStatus");
 const accuracyLabel = document.getElementById("accuracy");
 const eventStatus = document.getElementById("eventStatus");
 const statusLabel = document.getElementById("status");
 const eventIdLabel = document.getElementById("eventId");
+const ticketIdLabel = document.getElementById("ticketId");
+const ticketIdShortLabel = document.getElementById("ticketIdShort");
 
 let currentEventId = localStorage.getItem("event_id");
+let currentTicketId = localStorage.getItem("ticket_id");
 let selectedAlertType = "SOS_MANUAL";
+let mediaRecorder = null;
+let audioChunks = [];
+let audioStream = null;
+let recordingTimeout = null;
 
 const alertDefinitions = {
   SOS_MANUAL: {
@@ -55,11 +80,24 @@ const alertDefinitions = {
   }
 };
 
+function shortTicketId(ticketId) {
+  if (!ticketId) return "-";
+  return "#" + String(ticketId).slice(0, 8).toUpperCase();
+}
+
+function updateTicketLabels() {
+  ticketIdLabel.textContent = currentTicketId || "-";
+  ticketIdShortLabel.textContent = shortTicketId(currentTicketId);
+}
+
 function showHome() {
   if (currentEventId) return;
 
   homePanel.hidden = false;
   categoryPanel.hidden = true;
+  activePanel.hidden = true;
+  textPanel.hidden = true;
+  audioPanel.hidden = true;
   cancelButton.hidden = true;
   sosButton.disabled = false;
   confirmButton.disabled = false;
@@ -70,21 +108,25 @@ function showHome() {
 function showCategories() {
   if (currentEventId) {
     statusLabel.textContent = "Ya existe una alerta activa";
+    showActiveAlert();
     return;
   }
 
   homePanel.hidden = true;
   categoryPanel.hidden = false;
+  activePanel.hidden = true;
   statusLabel.textContent = "Selecciona el tipo de emergencia";
 }
 
 function showActiveAlert() {
   homePanel.hidden = true;
   categoryPanel.hidden = true;
+  activePanel.hidden = false;
   cancelButton.hidden = false;
   sosButton.disabled = true;
   confirmButton.disabled = false;
   backButton.disabled = false;
+  updateTicketLabels();
 }
 
 function setSendingState(isSending) {
@@ -108,6 +150,16 @@ function getCurrentPosition() {
   });
 }
 
+function requireTicket() {
+  if (!currentTicketId) {
+    statusLabel.textContent = "Esperando folio del ticket...";
+    alert("La alerta fue enviada, pero aún no tengo el folio del ticket. Espera unos segundos y vuelve a intentar.");
+    return false;
+  }
+
+  return true;
+}
+
 async function sendSOS() {
   if (currentEventId) {
     statusLabel.textContent = "Ya existe una alerta activa";
@@ -129,8 +181,10 @@ async function sendSOS() {
       user_id: userId,
       name: "Usuario móvil",
       source: "mobile_pwa",
+      control_center_code: CONTROL_CENTER_CODE,
       alert_type: selectedAlertType,
       title: alertDefinitions[selectedAlertType].title,
+      description: "Alerta enviada desde PWA SOS Municipal",
       priority: alertDefinitions[selectedAlertType].priority,
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
@@ -155,11 +209,18 @@ async function sendSOS() {
     const data = await res.json();
 
     currentEventId = data.event_id;
+    currentTicketId = data.ticket_id || null;
+
     localStorage.setItem("event_id", currentEventId);
+    if (currentTicketId) {
+      localStorage.setItem("ticket_id", currentTicketId);
+    }
 
     eventIdLabel.textContent = currentEventId;
     eventStatus.textContent = "ACTIVO";
-    statusLabel.textContent = "Alerta enviada";
+    statusLabel.textContent = currentTicketId
+      ? `Alerta enviada · ${shortTicketId(currentTicketId)}`
+      : "Alerta enviada";
 
     showActiveAlert();
   } catch (error) {
@@ -198,11 +259,15 @@ async function cancelSOS() {
     }
 
     currentEventId = null;
+    currentTicketId = null;
     localStorage.removeItem("event_id");
+    localStorage.removeItem("ticket_id");
 
     eventStatus.textContent = "CANCELADO";
     eventIdLabel.textContent = "-";
+    updateTicketLabels();
     statusLabel.textContent = "Alerta cancelada";
+    closeCall();
     showHome();
   } catch (error) {
     console.error(error);
@@ -226,19 +291,239 @@ async function refreshStatus() {
     const data = await res.json();
     const state = data?.event?.state || "DESCONOCIDO";
 
+    if (data?.event?.ticket_id && !currentTicketId) {
+      currentTicketId = data.event.ticket_id;
+      localStorage.setItem("ticket_id", currentTicketId);
+      updateTicketLabels();
+    }
+
     eventStatus.textContent = state;
-    statusLabel.textContent = "Estado: " + state;
+    statusLabel.textContent = currentTicketId
+      ? `Estado: ${state} · ${shortTicketId(currentTicketId)}`
+      : "Estado: " + state;
 
     if (state === "CANCELLED" || state === "CLOSED" || state === "RESOLVED") {
       currentEventId = null;
+      currentTicketId = null;
       localStorage.removeItem("event_id");
+      localStorage.removeItem("ticket_id");
       eventIdLabel.textContent = "-";
+      updateTicketLabels();
+      closeCall();
       showHome();
     }
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "Sin conexión con plataforma";
   }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function sendTextMessage() {
+  if (!requireTicket()) return;
+
+  const message = textMessage.value.trim();
+  if (!message) {
+    alert("Escribe un mensaje antes de enviarlo.");
+    return;
+  }
+
+  sendTextButton.disabled = true;
+  statusLabel.textContent = "Enviando mensaje...";
+
+  try {
+    const res = await fetch(`${API}/tickets/${currentTicketId}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sender_role: "NEIGHBOR",
+        sender_name: "Vecino SOS",
+        message
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error("Error HTTP " + res.status);
+    }
+
+    textMessage.value = "";
+    textPanel.hidden = true;
+    statusLabel.textContent = "Mensaje enviado a la central";
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo enviar el mensaje";
+  } finally {
+    sendTextButton.disabled = false;
+  }
+}
+
+async function uploadMedia(mediaType, blob, fileName) {
+  if (!requireTicket()) return;
+
+  statusLabel.textContent = mediaType === "audio"
+    ? "Subiendo audio..."
+    : "Subiendo video...";
+
+  const dataUrl = await blobToDataUrl(blob);
+
+  const res = await fetch(`${API}/tickets/${currentTicketId}/media`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      sender_role: "NEIGHBOR",
+      sender_name: "Vecino SOS",
+      media_type: mediaType,
+      file_name: fileName,
+      data_url: dataUrl
+    })
+  });
+
+  if (!res.ok) {
+    throw new Error("Error HTTP " + res.status);
+  }
+
+  await res.json();
+  statusLabel.textContent = mediaType === "audio"
+    ? "Audio enviado a la central"
+    : "Video enviado a la central";
+}
+
+async function toggleAudioRecording() {
+  if (!requireTicket()) return;
+
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    alert("Este navegador no permite grabar audio desde la PWA.");
+    return;
+  }
+
+  try {
+    audioChunks = [];
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const options = MediaRecorder.isTypeSupported("audio/webm")
+      ? { mimeType: "audio/webm" }
+      : {};
+
+    mediaRecorder = new MediaRecorder(audioStream, options);
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      clearTimeout(recordingTimeout);
+      audioStream?.getTracks().forEach(track => track.stop());
+      audioPanel.hidden = true;
+      audioButton.innerHTML = "🎙️<span>Mensaje audio</span>";
+
+      const audioBlob = new Blob(audioChunks, {
+        type: mediaRecorder.mimeType || "audio/webm"
+      });
+
+      try {
+        await uploadMedia("audio", audioBlob, `audio-${Date.now()}.webm`);
+      } catch (error) {
+        console.error(error);
+        statusLabel.textContent = "No se pudo enviar el audio";
+      }
+    };
+
+    mediaRecorder.start();
+    audioPanel.hidden = false;
+    audioStatus.textContent = "Toca nuevamente para detener y enviar. Máximo 30 segundos.";
+    audioButton.innerHTML = "⏹️<span>Detener audio</span>";
+    statusLabel.textContent = "Grabando audio...";
+
+    recordingTimeout = setTimeout(() => {
+      if (mediaRecorder?.state === "recording") {
+        mediaRecorder.stop();
+      }
+    }, 30000);
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo acceder al micrófono";
+  }
+}
+
+async function uploadSelectedVideo() {
+  const file = videoInput.files?.[0];
+  if (!file) return;
+
+  if (file.size > 25 * 1024 * 1024) {
+    alert("El video es muy grande para la demo. Usa un clip más corto.");
+    videoInput.value = "";
+    return;
+  }
+
+  try {
+    await uploadMedia("video", file, file.name || `video-${Date.now()}.mp4`);
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo enviar el video";
+  } finally {
+    videoInput.value = "";
+  }
+}
+
+async function startCall(mode) {
+  if (!requireTicket()) return;
+
+  statusLabel.textContent = mode === "voice"
+    ? "Iniciando llamada de voz..."
+    : "Iniciando videollamada...";
+
+  try {
+    const res = await fetch(`${API}/tickets/${currentTicketId}/call-start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        mode,
+        sender_role: "NEIGHBOR",
+        sender_name: "Vecino SOS"
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error("Error HTTP " + res.status);
+    }
+
+    const data = await res.json();
+    callTitle.textContent = mode === "voice"
+      ? `Llamada voz · ${shortTicketId(currentTicketId)}`
+      : `Videollamada · ${shortTicketId(currentTicketId)}`;
+    callFrame.src = data.room_url;
+    callPanel.hidden = false;
+    statusLabel.textContent = "Comunicación abierta con central";
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo iniciar la comunicación";
+  }
+}
+
+function closeCall() {
+  callFrame.src = "about:blank";
+  callPanel.hidden = true;
 }
 
 document.querySelectorAll(".emergency-option").forEach(button => {
@@ -259,15 +544,27 @@ sosButton.addEventListener("click", showCategories);
 confirmButton.addEventListener("click", sendSOS);
 backButton.addEventListener("click", showHome);
 cancelButton.addEventListener("click", cancelSOS);
+voiceButton.addEventListener("click", () => startCall("voice"));
+videoCallButton.addEventListener("click", () => startCall("video"));
+textButton.addEventListener("click", () => {
+  textPanel.hidden = !textPanel.hidden;
+});
+sendTextButton.addEventListener("click", sendTextMessage);
+audioButton.addEventListener("click", toggleAudioRecording);
+videoUploadButton.addEventListener("click", () => videoInput.click());
+videoInput.addEventListener("change", uploadSelectedVideo);
+closeCallButton.addEventListener("click", closeCall);
 
 setInterval(refreshStatus, 5000);
 
 if (currentEventId) {
   eventIdLabel.textContent = currentEventId;
+  updateTicketLabels();
   eventStatus.textContent = "RECUPERANDO";
   statusLabel.textContent = "Recuperando alerta activa...";
   showActiveAlert();
   refreshStatus();
 } else {
+  updateTicketLabels();
   showHome();
 }

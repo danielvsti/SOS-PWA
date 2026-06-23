@@ -81,79 +81,17 @@
       </button>
     </section>
 
-    <section id="activePanel" class="active-panel" hidden>
-      <h2>Alerta enviada</h2>
-      <p class="helper-text">
-        La central ya recibió tu emergencia. Puedes comunicarte sin salir de la aplicación.
-      </p>
-
-      <div class="case-card">
-        <div>Folio del caso</div>
-        <strong id="ticketIdShort">-</strong>
-      </div>
-
-      <div class="communication-grid">
-        <button id="voiceButton" class="comm-button" type="button">
-          📞<span>Llamada voz</span>
-        </button>
-
-        <button id="textButton" class="comm-button" type="button">
-          💬<span>Mensaje texto</span>
-        </button>
-
-        <button id="audioButton" class="comm-button" type="button">
-          🎙️<span>Mensaje audio</span>
-        </button>
-
-        <button id="videoCallButton" class="comm-button" type="button">
-          🎥<span>Videollamada</span>
-        </button>
-
-        <button id="videoUploadButton" class="comm-button wide" type="button">
-          📹<span>Grabar / subir video</span>
-        </button>
-      </div>
-
-      <div id="textPanel" class="message-box" hidden>
-        <textarea id="textMessage" rows="4" placeholder="Escribe un mensaje breve para la central..."></textarea>
-        <button id="sendTextButton" class="primary-action compact" type="button">
-          Enviar mensaje
-        </button>
-      </div>
-
-      <div id="audioPanel" class="message-box" hidden>
-        <strong>Grabando audio...</strong>
-        <p id="audioStatus">Toca nuevamente para detener y enviar.</p>
-      </div>
-
-      <input id="videoInput" type="file" accept="video/*" capture="environment" hidden>
-    </section>
-
     <button id="cancelButton" class="danger-secondary" type="button" hidden>
-      Cancelar / falsa alarma
+      Cancelar alerta
     </button>
 
     <section class="info" aria-label="Información de alerta">
       <div>GPS: <span id="gpsStatus">pendiente</span></div>
       <div>Precisión: <span id="accuracy">-</span></div>
       <div>Estado: <span id="eventStatus">NORMAL</span></div>
-      <div>Ticket: <span id="ticketId">-</span></div>
       <div>Evento: <span id="eventId">-</span></div>
     </section>
   </main>
-
-  <section id="callPanel" class="call-panel" hidden>
-    <div class="call-header">
-      <strong id="callTitle">Comunicación con central</strong>
-      <button id="closeCallButton" type="button">✖</button>
-    </div>
-    <iframe
-      id="callFrame"
-      title="Comunicación con central"
-      allow="camera; microphone; fullscreen; display-capture; autoplay"
-      referrerpolicy="no-referrer-when-downgrade">
-    </iframe>
-  </section>
 
   <script src="app.js"></script>
 </body>
