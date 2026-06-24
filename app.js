@@ -393,15 +393,21 @@ async function refreshStatus() {
     }
 
     const data = await res.json();
-    const state = data?.event?.state || "DESCONOCIDO";
+    const event = data?.event || {};
+    const terminalStates = ["CANCELLED", "CLOSED", "RESOLVED"];
 
-    if (data?.event?.ticket_id && !currentTicketId) {
-      currentTicketId = data.event.ticket_id;
+    const ticketState = event.ticket_state || data?.ticket_state || null;
+    const state = terminalStates.includes(ticketState)
+      ? ticketState
+      : (event.effective_state || data?.effective_state || event.state || "DESCONOCIDO");
+
+    if (event.ticket_id && !currentTicketId) {
+      currentTicketId = event.ticket_id;
       localStorage.setItem("ticket_id", currentTicketId);
       updateTicketLabels();
     }
 
-    if (data?.pending_call_request) {
+    if (data?.pending_call_request && !terminalStates.includes(state)) {
       showIncomingCall(data.pending_call_request);
     }
 
@@ -410,14 +416,25 @@ async function refreshStatus() {
       ? `Estado: ${state} · ${shortTicketId(currentTicketId)}`
       : "Estado: " + state;
 
-    if (state === "CANCELLED" || state === "CLOSED" || state === "RESOLVED") {
+    if (terminalStates.includes(state)) {
+      const finishedTicket = currentTicketId;
+
       currentEventId = null;
       currentTicketId = null;
       localStorage.removeItem("event_id");
       localStorage.removeItem("ticket_id");
       eventIdLabel.textContent = "-";
       updateTicketLabels();
-      showHome();
+
+      statusLabel.textContent =
+        state === "RESOLVED"
+          ? `Caso resuelto · ${shortTicketId(finishedTicket)}`
+          : state === "CLOSED"
+            ? `Caso cerrado · ${shortTicketId(finishedTicket)}`
+            : "Alerta cancelada";
+
+      setTimeout(showHome, 1800);
+      return;
     }
   } catch (error) {
     console.error(error);
