@@ -151,8 +151,8 @@ function showIncomingCall(request) {
     ? "La central solicita videollamada"
     : "La central solicita llamada de voz";
   incomingCallText.textContent = isVideo
-    ? "La central quiere iniciar una videollamada asociada a tu emergencia."
-    : "La central quiere comunicarse contigo por voz dentro del caso.";
+    ? "La central solicita coordinar una videollamada para este caso. Aceptar solo notificará a la central; la llamada real se habilitará en la siguiente versión."
+    : "La central solicita coordinar una llamada de voz para este caso. Aceptar solo notificará a la central; la llamada real se habilitará en la siguiente versión.";
 
   incomingCallPanel.hidden = false;
   navigator.vibrate?.([180, 120, 180]);
@@ -187,8 +187,8 @@ async function respondIncomingCall(response) {
     saveHandledCallActionIds();
 
     statusLabel.textContent = response === "ACCEPTED"
-      ? "Avisaste a la central que aceptas la comunicación"
-      : "Avisaste a la central que no puedes responder ahora";
+      ? "Solicitud aceptada. La central fue notificada."
+      : "Solicitud rechazada. La central fue notificada.";
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo responder a la central";
