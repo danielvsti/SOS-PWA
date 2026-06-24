@@ -33,6 +33,72 @@
 
     <div id="status" class="status-pill">Lista para usar</div>
 
+    <section id="authPanel" class="auth-panel" hidden>
+      <div class="auth-card">
+        <h2>Registro del vecino</h2>
+        <p class="helper-text">
+          Regístrate para que la central reciba tu nombre, teléfono, dirección y contactos de emergencia.
+        </p>
+
+        <label>Nombre completo *</label>
+        <input id="regFullName" type="text" autocomplete="name" placeholder="Nombre y apellido">
+
+        <label>Teléfono *</label>
+        <input id="regPhone" type="tel" autocomplete="tel" placeholder="+569XXXXXXXX">
+
+        <label>RUT</label>
+        <input id="regRut" type="text" placeholder="Opcional">
+
+        <label>Email</label>
+        <input id="regEmail" type="email" autocomplete="email" placeholder="Opcional">
+
+        <label>Dirección declarada *</label>
+        <input id="regAddress" type="text" autocomplete="street-address" placeholder="Calle, número, depto, sector">
+
+        <button id="homeLocationButton" class="secondary-action compact-dark" type="button">
+          📍 Usar GPS como domicilio
+        </button>
+
+        <div id="homeLocationStatus" class="small-muted">Domicilio GPS pendiente</div>
+
+        <div class="contact-subtitle">Contacto de emergencia 1</div>
+        <input id="contact1Name" type="text" placeholder="Nombre contacto">
+        <input id="contact1Phone" type="tel" placeholder="Teléfono contacto">
+        <input id="contact1Relation" type="text" placeholder="Relación: familiar, vecino, conserje...">
+
+        <div class="contact-subtitle">Contacto de emergencia 2</div>
+        <input id="contact2Name" type="text" placeholder="Nombre contacto">
+        <input id="contact2Phone" type="tel" placeholder="Teléfono contacto">
+        <input id="contact2Relation" type="text" placeholder="Relación">
+
+        <button id="registerButton" class="primary-action" type="button">
+          Registrar / actualizar datos
+        </button>
+
+        <div class="auth-divider">Ya estoy registrado</div>
+
+        <label>Ingresar por teléfono</label>
+        <input id="loginPhone" type="tel" autocomplete="tel" placeholder="+569XXXXXXXX">
+
+        <button id="loginButton" class="secondary-action" type="button">
+          Ingresar
+        </button>
+      </div>
+    </section>
+
+    <section id="profilePanel" class="profile-panel" hidden>
+      <div class="profile-card">
+        <div>Vecino registrado</div>
+        <strong id="profileName">-</strong>
+        <span id="profileMeta">-</span>
+        <div class="profile-actions">
+          <button id="editProfileButton" type="button">Editar perfil</button>
+          <button id="logoutButton" type="button">Salir</button>
+        </div>
+      </div>
+    </section>
+
+
     <section id="homePanel" class="home-panel">
       <button id="sosButton" type="button" aria-label="Activar SOS">
         SOS

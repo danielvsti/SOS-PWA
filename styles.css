@@ -494,3 +494,143 @@ button:disabled {
   font-weight: 800;
   cursor: pointer;
 }
+
+
+.auth-panel {
+  margin-top: 10px;
+}
+
+.auth-card {
+  margin: 10px auto 18px;
+  padding: 18px;
+  border-radius: 24px;
+  background: white;
+  box-shadow: 0 12px 30px rgba(17, 24, 39, .10);
+  text-align: left;
+}
+
+.auth-card h2 {
+  text-align: left;
+  margin-top: 4px;
+}
+
+.auth-card label {
+  display: block;
+  margin: 14px 0 6px;
+  color: #111827;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.auth-card input {
+  width: 100%;
+  min-height: 48px;
+  border: 2px solid #d1d5db;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 17px;
+  color: #111827;
+  background: white;
+}
+
+.auth-card input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+}
+
+.compact-dark {
+  padding: 12px 16px;
+  font-size: 15px;
+  margin-top: 12px;
+}
+
+.small-muted {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.contact-subtitle {
+  margin: 18px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  font-weight: 900;
+  color: #374151;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 8px;
+  color: #6b7280;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.profile-panel {
+  margin: 8px 0 12px;
+}
+
+.profile-card {
+  padding: 14px;
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.08);
+  text-align: left;
+}
+
+.profile-card div:first-child {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.profile-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  color: #111827;
+}
+
+.profile-card span {
+  display: block;
+  margin-top: 4px;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.profile-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.profile-actions button {
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  color: white;
+  background: #374151;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profile-actions button:first-child {
+  background: #2563eb;
+}

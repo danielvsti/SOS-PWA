@@ -1,8 +1,11 @@
 const API = "https://sos.vsti.cl";
 const CONTROL_CENTER_CODE = "CC-VINA";
 
-const userId = localStorage.getItem("user_id") || crypto.randomUUID();
-localStorage.setItem("user_id", userId);
+let userId = localStorage.getItem("user_id");
+let neighborProfile = JSON.parse(localStorage.getItem("neighbor_profile") || "null");
+let homeLatitude = localStorage.getItem("neighbor_home_latitude") || null;
+let homeLongitude = localStorage.getItem("neighbor_home_longitude") || null;
+let homeAccuracy = localStorage.getItem("neighbor_home_accuracy") || null;
 
 const homePanel = document.getElementById("homePanel");
 const categoryPanel = document.getElementById("categoryPanel");
@@ -16,6 +19,29 @@ const incomingCallPanel = document.getElementById("incomingCallPanel");
 const incomingCallIcon = document.getElementById("incomingCallIcon");
 const incomingCallTitle = document.getElementById("incomingCallTitle");
 const incomingCallText = document.getElementById("incomingCallText");
+
+const authPanel = document.getElementById("authPanel");
+const profilePanel = document.getElementById("profilePanel");
+const profileName = document.getElementById("profileName");
+const profileMeta = document.getElementById("profileMeta");
+const regFullName = document.getElementById("regFullName");
+const regPhone = document.getElementById("regPhone");
+const regRut = document.getElementById("regRut");
+const regEmail = document.getElementById("regEmail");
+const regAddress = document.getElementById("regAddress");
+const homeLocationButton = document.getElementById("homeLocationButton");
+const homeLocationStatus = document.getElementById("homeLocationStatus");
+const contact1Name = document.getElementById("contact1Name");
+const contact1Phone = document.getElementById("contact1Phone");
+const contact1Relation = document.getElementById("contact1Relation");
+const contact2Name = document.getElementById("contact2Name");
+const contact2Phone = document.getElementById("contact2Phone");
+const contact2Relation = document.getElementById("contact2Relation");
+const registerButton = document.getElementById("registerButton");
+const loginPhone = document.getElementById("loginPhone");
+const loginButton = document.getElementById("loginButton");
+const editProfileButton = document.getElementById("editProfileButton");
+const logoutButton = document.getElementById("logoutButton");
 
 const sosButton = document.getElementById("sosButton");
 const confirmButton = document.getElementById("confirmButton");
@@ -43,6 +69,11 @@ const statusLabel = document.getElementById("status");
 const eventIdLabel = document.getElementById("eventId");
 const ticketIdLabel = document.getElementById("ticketId");
 const ticketIdShortLabel = document.getElementById("ticketIdShort");
+
+if (neighborProfile?.id && !userId) {
+  userId = neighborProfile.id;
+  localStorage.setItem("user_id", userId);
+}
 
 let currentEventId = localStorage.getItem("event_id");
 let currentTicketId = localStorage.getItem("ticket_id");
@@ -90,6 +121,204 @@ const alertDefinitions = {
     priority: 3
   }
 };
+
+function normalizePhone(phone) {
+  return String(phone || "").trim().replace(/\s+/g, "");
+}
+
+function getNeighborName() {
+  return neighborProfile?.full_name || "Vecino SOS";
+}
+
+function getNeighborPhone() {
+  return neighborProfile?.phone || null;
+}
+
+function isNeighborRegistered() {
+  return !!(userId && neighborProfile?.id);
+}
+
+function saveNeighborProfile(user) {
+  neighborProfile = user;
+  userId = user.id;
+  localStorage.setItem("neighbor_profile", JSON.stringify(user));
+  localStorage.setItem("user_id", user.id);
+}
+
+function clearNeighborProfile() {
+  neighborProfile = null;
+  userId = null;
+  localStorage.removeItem("neighbor_profile");
+  localStorage.removeItem("user_id");
+}
+
+function updateProfileCard() {
+  if (!neighborProfile) return;
+
+  profileName.textContent = neighborProfile.full_name || "Vecino registrado";
+  profileMeta.textContent = `${neighborProfile.phone || "sin teléfono"} · ${neighborProfile.validation_status || "PROVISIONAL_ACTIVE"}`;
+}
+
+function fillRegisterFormFromProfile() {
+  if (!neighborProfile) return;
+
+  regFullName.value = neighborProfile.full_name || "";
+  regPhone.value = neighborProfile.phone || "";
+  regRut.value = neighborProfile.rut || "";
+  regEmail.value = neighborProfile.email || "";
+  regAddress.value = neighborProfile.declared_address || "";
+  loginPhone.value = neighborProfile.phone || "";
+}
+
+function buildEmergencyContacts() {
+  const contacts = [];
+
+  if (contact1Name.value.trim() && contact1Phone.value.trim()) {
+    contacts.push({
+      name: contact1Name.value.trim(),
+      phone: normalizePhone(contact1Phone.value),
+      relationship: contact1Relation.value.trim() || "Contacto emergencia",
+      priority: 1
+    });
+  }
+
+  if (contact2Name.value.trim() && contact2Phone.value.trim()) {
+    contacts.push({
+      name: contact2Name.value.trim(),
+      phone: normalizePhone(contact2Phone.value),
+      relationship: contact2Relation.value.trim() || "Contacto emergencia",
+      priority: 2
+    });
+  }
+
+  return contacts;
+}
+
+function showAuth() {
+  homePanel.hidden = true;
+  categoryPanel.hidden = true;
+  activePanel.hidden = true;
+  profilePanel.hidden = true;
+  authPanel.hidden = false;
+  cancelButton.hidden = true;
+  statusLabel.textContent = "Registra o ingresa tu teléfono";
+  fillRegisterFormFromProfile();
+}
+
+async function registerNeighbor() {
+  const fullName = regFullName.value.trim();
+  const phone = normalizePhone(regPhone.value);
+  const declaredAddress = regAddress.value.trim();
+
+  if (!fullName || !phone || !declaredAddress) {
+    alert("Completa nombre, teléfono y dirección.");
+    return;
+  }
+
+  registerButton.disabled = true;
+  statusLabel.textContent = "Registrando vecino...";
+
+  try {
+    const payload = {
+      control_center_code: CONTROL_CENTER_CODE,
+      full_name: fullName,
+      rut: regRut.value.trim() || null,
+      phone,
+      email: regEmail.value.trim() || null,
+      declared_address: declaredAddress,
+      latitude: homeLatitude ? Number(homeLatitude) : null,
+      longitude: homeLongitude ? Number(homeLongitude) : null,
+      emergency_contacts: buildEmergencyContacts()
+    };
+
+    const res = await fetch(`${API}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "ok") {
+      throw new Error(data.message || "No se pudo registrar");
+    }
+
+    saveNeighborProfile(data.user);
+    updateProfileCard();
+    statusLabel.textContent = `Vecino registrado · ${data.user.validation_status || "PROVISIONAL_ACTIVE"}`;
+    showHome();
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo registrar el vecino";
+    alert(error.message || "No se pudo registrar el vecino");
+  } finally {
+    registerButton.disabled = false;
+  }
+}
+
+async function loginNeighbor() {
+  const phone = normalizePhone(loginPhone.value || regPhone.value);
+
+  if (!phone) {
+    alert("Ingresa el teléfono registrado.");
+    return;
+  }
+
+  loginButton.disabled = true;
+  statusLabel.textContent = "Ingresando...";
+
+  try {
+    const res = await fetch(`${API}/auth/login-demo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "ok") {
+      throw new Error(data.message || "Usuario no encontrado");
+    }
+
+    if (data.user.role !== "NEIGHBOR") {
+      throw new Error("Este usuario no tiene perfil de vecino.");
+    }
+
+    saveNeighborProfile(data.user);
+    updateProfileCard();
+    statusLabel.textContent = `Bienvenido/a, ${data.user.full_name}`;
+    showHome();
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo ingresar";
+    alert(error.message || "No se pudo ingresar");
+  } finally {
+    loginButton.disabled = false;
+  }
+}
+
+async function useHomeLocation() {
+  homeLocationButton.disabled = true;
+  homeLocationStatus.textContent = "Obteniendo GPS del domicilio...";
+
+  try {
+    const position = await getCurrentPosition();
+    homeLatitude = String(position.coords.latitude);
+    homeLongitude = String(position.coords.longitude);
+    homeAccuracy = String(Math.round(position.coords.accuracy));
+
+    localStorage.setItem("neighbor_home_latitude", homeLatitude);
+    localStorage.setItem("neighbor_home_longitude", homeLongitude);
+    localStorage.setItem("neighbor_home_accuracy", homeAccuracy);
+
+    homeLocationStatus.textContent = `GPS domicilio OK · precisión ${homeAccuracy} m`;
+  } catch (error) {
+    console.error(error);
+    homeLocationStatus.textContent = "No se pudo obtener GPS del domicilio";
+  } finally {
+    homeLocationButton.disabled = false;
+  }
+}
 
 function shortTicketId(ticketId) {
   if (!ticketId) return "-";
@@ -178,7 +407,7 @@ async function respondIncomingCall(response) {
         response,
         mode: request.mode,
         sender_role: "NEIGHBOR",
-        sender_name: "Vecino SOS"
+        sender_name: getNeighborName()
       })
     });
 
@@ -199,6 +428,14 @@ async function respondIncomingCall(response) {
 function showHome() {
   if (currentEventId) return;
 
+  if (!isNeighborRegistered()) {
+    showAuth();
+    return;
+  }
+
+  updateProfileCard();
+  authPanel.hidden = true;
+  profilePanel.hidden = false;
   homePanel.hidden = false;
   categoryPanel.hidden = true;
   activePanel.hidden = true;
@@ -212,6 +449,11 @@ function showHome() {
 }
 
 function showCategories() {
+  if (!isNeighborRegistered()) {
+    showAuth();
+    return;
+  }
+
   if (currentEventId) {
     statusLabel.textContent = "Ya existe una alerta activa";
     showActiveAlert();
@@ -225,6 +467,8 @@ function showCategories() {
 }
 
 function showActiveAlert() {
+  authPanel.hidden = true;
+  profilePanel.hidden = true;
   homePanel.hidden = true;
   categoryPanel.hidden = true;
   activePanel.hidden = false;
@@ -285,7 +529,8 @@ async function sendSOS() {
 
     const payload = {
       user_id: userId,
-      name: "Usuario móvil",
+      name: getNeighborName(),
+      phone: getNeighborPhone(),
       source: "mobile_pwa",
       control_center_code: CONTROL_CENTER_CODE,
       alert_type: selectedAlertType,
@@ -356,7 +601,7 @@ async function leaveFollowup() {
         },
         body: JSON.stringify({
           sender_role: "NEIGHBOR",
-          sender_name: "Vecino SOS",
+          sender_name: getNeighborName(),
           message: "El vecino volvió al inicio de la aplicación sin cancelar la emergencia. El caso debe seguir siendo gestionado por la central."
         })
       });
@@ -511,7 +756,7 @@ async function sendTextMessage() {
       },
       body: JSON.stringify({
         sender_role: "NEIGHBOR",
-        sender_name: "Vecino SOS",
+        sender_name: getNeighborName(),
         message
       })
     });
@@ -547,7 +792,7 @@ async function uploadMedia(mediaType, blob, fileName) {
     },
     body: JSON.stringify({
       sender_role: "NEIGHBOR",
-      sender_name: "Vecino SOS",
+      sender_name: getNeighborName(),
       media_type: mediaType,
       file_name: fileName,
       data_url: dataUrl
@@ -694,7 +939,7 @@ async function requestCall(mode) {
       body: JSON.stringify({
         mode,
         sender_role: "NEIGHBOR",
-        sender_name: "Vecino SOS"
+        sender_name: getNeighborName()
       })
     });
 
@@ -748,6 +993,19 @@ acceptCallButton.addEventListener("click", () => respondIncomingCall("ACCEPTED")
 rejectCallButton.addEventListener("click", () => respondIncomingCall("REJECTED"));
 videoUploadButton.addEventListener("click", () => videoInput.click());
 videoInput.addEventListener("change", uploadSelectedVideo);
+registerButton.addEventListener("click", registerNeighbor);
+loginButton.addEventListener("click", loginNeighbor);
+homeLocationButton.addEventListener("click", useHomeLocation);
+editProfileButton.addEventListener("click", showAuth);
+logoutButton.addEventListener("click", () => {
+  if (currentEventId) {
+    alert("No puedes salir del perfil mientras hay una alerta activa. Primero vuelve al inicio sin cancelar o cancela la alerta si fue falsa alarma.");
+    return;
+  }
+
+  clearNeighborProfile();
+  showAuth();
+});
 
 setInterval(refreshStatus, 5000);
 
@@ -760,5 +1018,10 @@ if (currentEventId) {
   refreshStatus();
 } else {
   updateTicketLabels();
-  showHome();
+  if (isNeighborRegistered()) {
+    updateProfileCard();
+    showHome();
+  } else {
+    showAuth();
+  }
 }
