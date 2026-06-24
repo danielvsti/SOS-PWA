@@ -21,6 +21,7 @@ const sosButton = document.getElementById("sosButton");
 const confirmButton = document.getElementById("confirmButton");
 const backButton = document.getElementById("backButton");
 const cancelButton = document.getElementById("cancelButton");
+const leaveFollowupButton = document.getElementById("leaveFollowupButton");
 const voiceButton = document.getElementById("voiceButton");
 const textButton = document.getElementById("textButton");
 const audioButton = document.getElementById("audioButton");
@@ -336,6 +337,45 @@ async function sendSOS() {
   } finally {
     setSendingState(false);
   }
+}
+
+async function leaveFollowup() {
+  if (!currentEventId && !currentTicketId) {
+    showHome();
+    return;
+  }
+
+  const ticketForNotice = currentTicketId;
+
+  if (ticketForNotice) {
+    try {
+      await fetch(`${API}/tickets/${ticketForNotice}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sender_role: "NEIGHBOR",
+          sender_name: "Vecino SOS",
+          message: "El vecino volvió al inicio de la aplicación sin cancelar la emergencia. El caso debe seguir siendo gestionado por la central."
+        })
+      });
+    } catch (error) {
+      console.warn("No se pudo registrar salida de seguimiento", error);
+    }
+  }
+
+  currentEventId = null;
+  currentTicketId = null;
+  localStorage.removeItem("event_id");
+  localStorage.removeItem("ticket_id");
+
+  eventIdLabel.textContent = "-";
+  eventStatus.textContent = "NORMAL";
+  updateTicketLabels();
+  statusLabel.textContent = "Volviste al inicio. La central mantiene el caso.";
+
+  showHome();
 }
 
 async function cancelSOS() {
@@ -695,6 +735,7 @@ sosButton.addEventListener("click", showCategories);
 confirmButton.addEventListener("click", sendSOS);
 backButton.addEventListener("click", showHome);
 cancelButton.addEventListener("click", cancelSOS);
+leaveFollowupButton.addEventListener("click", leaveFollowup);
 voiceButton.addEventListener("click", () => requestCall("voice"));
 videoCallButton.addEventListener("click", () => requestCall("video"));
 textButton.addEventListener("click", () => {
