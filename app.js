@@ -69,6 +69,13 @@ const statusLabel = document.getElementById("status");
 const eventIdLabel = document.getElementById("eventId");
 const ticketIdLabel = document.getElementById("ticketId");
 const ticketIdShortLabel = document.getElementById("ticketIdShort");
+const caseProgressIcon = document.getElementById("caseProgressIcon");
+const caseProgressTitle = document.getElementById("caseProgressTitle");
+const caseProgressDetail = document.getElementById("caseProgressDetail");
+const caseProgressSteps = document.getElementById("caseProgressSteps");
+const resolverContactCard = document.getElementById("resolverContactCard");
+const resolverContactName = document.getElementById("resolverContactName");
+const resolverContactText = document.getElementById("resolverContactText");
 
 if (neighborProfile?.id && !userId) {
   userId = neighborProfile.id;
@@ -330,6 +337,86 @@ function updateTicketLabels() {
   ticketIdShortLabel.textContent = shortTicketId(currentTicketId);
 }
 
+function stateToProgressIcon(state) {
+  switch (state) {
+    case "ASSIGNED":
+    case "ACCEPTED_BY_RESOLVER":
+      return "👮";
+    case "EN_ROUTE":
+      return "🚗";
+    case "ON_SITE":
+      return "📍";
+    case "RESOLVED":
+    case "CLOSED":
+      return "✅";
+    case "CANCELLED":
+      return "⚪";
+    default:
+      return "✅";
+  }
+}
+
+function renderCaseProgress(progress) {
+  if (!caseProgressTitle || !progress) return;
+
+  const state = progress.ticket_state || "ACTIVE";
+  caseProgressIcon.textContent = stateToProgressIcon(state);
+  caseProgressTitle.textContent = progress.headline || "Central informada";
+  caseProgressDetail.textContent = progress.detail || "La central ya recibió tu emergencia.";
+
+  if (progress.resolver) {
+    resolverContactName.textContent = progress.resolver.name || "Resolutor municipal";
+    resolverContactText.textContent = progress.resolver.phone
+      ? `Podría contactarte al ${progress.resolver.phone}.`
+      : "Asignado a tu caso. Mantén tu teléfono disponible.";
+    resolverContactCard.hidden = false;
+  } else {
+    resolverContactCard.hidden = true;
+  }
+
+  const steps = Array.isArray(progress.steps) ? progress.steps : [];
+  caseProgressSteps.innerHTML = steps.map((step) => {
+    const classes = ["case-step"];
+    if (step.done) classes.push("done");
+    if (step.active) classes.push("active");
+
+    const dot = step.done ? "✓" : step.active ? "!" : "…";
+
+    return `
+      <div class="${classes.join(" ")}">
+        <div class="case-step-dot">${dot}</div>
+        <div>
+          <strong>${step.label || "Estado"}</strong>
+          <p>${step.detail || ""}</p>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function resetCaseProgress() {
+  renderCaseProgress({
+    ticket_state: "ACTIVE",
+    headline: "Central informada",
+    detail: "La central ya recibió tu emergencia.",
+    resolver: null,
+    steps: [
+      {
+        label: "Central informada",
+        detail: "La central recibió tu emergencia.",
+        done: true,
+        active: true
+      },
+      {
+        label: "Asignación de resolutor",
+        detail: "La central buscará un resolutor disponible.",
+        done: false,
+        active: false
+      }
+    ]
+  });
+}
+
 
 function saveHandledCallActionIds() {
   localStorage.setItem("handled_call_action_ids", JSON.stringify(handledCallActionIds.slice(-40)));
@@ -574,6 +661,7 @@ async function sendSOS() {
       : "Alerta enviada";
 
     showActiveAlert();
+    resetCaseProgress();
   } catch (error) {
     console.error(error);
     gpsStatus.textContent = "ERROR";
@@ -690,6 +778,10 @@ async function refreshStatus() {
       currentTicketId = event.ticket_id;
       localStorage.setItem("ticket_id", currentTicketId);
       updateTicketLabels();
+    }
+
+    if (data?.neighbor_progress) {
+      renderCaseProgress(data.neighbor_progress);
     }
 
     if (data?.pending_call_request && !terminalStates.includes(state)) {
@@ -1015,6 +1107,7 @@ if (currentEventId) {
   eventStatus.textContent = "RECUPERANDO";
   statusLabel.textContent = "Recuperando alerta activa...";
   showActiveAlert();
+  resetCaseProgress();
   refreshStatus();
 } else {
   updateTicketLabels();
