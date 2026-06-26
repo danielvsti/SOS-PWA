@@ -106,6 +106,20 @@
       <p class="helper-text">
         Presiona el botón en caso de emergencia.
       </p>
+
+      <div id="resumeFollowupCard" class="resume-followup-card" hidden>
+        <div class="resume-followup-icon">🟡</div>
+        <div class="resume-followup-content">
+          <strong>Caso activo en seguimiento</strong>
+          <p>
+            Folio <span id="resumeTicketId">-</span><br>
+            <span id="resumeCaseStatus">La central mantiene el caso activo.</span>
+          </p>
+          <button id="resumeFollowupButton" class="secondary-action compact" type="button">
+            Ver estado del caso
+          </button>
+        </div>
+      </div>
     </section>
 
     <section id="categoryPanel" class="category-panel" hidden>

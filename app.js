@@ -8,6 +8,10 @@ let homeLongitude = localStorage.getItem("neighbor_home_longitude") || null;
 let homeAccuracy = localStorage.getItem("neighbor_home_accuracy") || null;
 
 const homePanel = document.getElementById("homePanel");
+const resumeFollowupCard = document.getElementById("resumeFollowupCard");
+const resumeTicketId = document.getElementById("resumeTicketId");
+const resumeCaseStatus = document.getElementById("resumeCaseStatus");
+const resumeFollowupButton = document.getElementById("resumeFollowupButton");
 const categoryPanel = document.getElementById("categoryPanel");
 const activePanel = document.getElementById("activePanel");
 const textPanel = document.getElementById("textPanel");
@@ -84,6 +88,7 @@ if (neighborProfile?.id && !userId) {
 
 let currentEventId = localStorage.getItem("event_id");
 let currentTicketId = localStorage.getItem("ticket_id");
+let followupMinimized = localStorage.getItem("followup_minimized") === "true";
 let selectedAlertType = "SOS_MANUAL";
 let mediaRecorder = null;
 let audioChunks = [];
@@ -253,7 +258,8 @@ async function registerNeighbor() {
     saveNeighborProfile(data.user);
     updateProfileCard();
     statusLabel.textContent = `Vecino registrado · ${data.user.validation_status || "PROVISIONAL_ACTIVE"}`;
-    showHome();
+    await recoverActiveCase();
+    showHome({ force: true });
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo registrar el vecino";
@@ -294,7 +300,8 @@ async function loginNeighbor() {
     saveNeighborProfile(data.user);
     updateProfileCard();
     statusLabel.textContent = `Bienvenido/a, ${data.user.full_name}`;
-    showHome();
+    await recoverActiveCase();
+    showHome({ force: true });
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo ingresar";
@@ -335,6 +342,41 @@ function shortTicketId(ticketId) {
 function updateTicketLabels() {
   ticketIdLabel.textContent = currentTicketId || "-";
   ticketIdShortLabel.textContent = shortTicketId(currentTicketId);
+}
+
+function setFollowupMinimized(value) {
+  followupMinimized = value === true;
+
+  if (followupMinimized) {
+    localStorage.setItem("followup_minimized", "true");
+  } else {
+    localStorage.removeItem("followup_minimized");
+  }
+}
+
+function updateResumeFollowupCard(stateText = null) {
+  if (!resumeFollowupCard) return;
+
+  if (!currentEventId && !currentTicketId) {
+    resumeFollowupCard.hidden = true;
+    return;
+  }
+
+  resumeTicketId.textContent = shortTicketId(currentTicketId);
+  resumeCaseStatus.textContent = stateText || "Caso en seguimiento";
+  resumeFollowupCard.hidden = false;
+}
+
+function clearCurrentCaseLocal() {
+  currentEventId = null;
+  currentTicketId = null;
+  setFollowupMinimized(false);
+  localStorage.removeItem("event_id");
+  localStorage.removeItem("ticket_id");
+  eventIdLabel.textContent = "-";
+  eventStatus.textContent = "NORMAL";
+  updateTicketLabels();
+  updateResumeFollowupCard();
 }
 
 function stateToProgressIcon(state) {
@@ -512,8 +554,47 @@ async function respondIncomingCall(response) {
   }
 }
 
-function showHome() {
-  if (currentEventId) return;
+async function recoverActiveCase() {
+  if (!isNeighborRegistered() || currentEventId) return false;
+
+  try {
+    const res = await fetch(`${API}/public/mobile/active?user_id=${encodeURIComponent(userId)}`);
+
+    if (!res.ok) return false;
+
+    const data = await res.json();
+
+    if (data.status !== "ok" || !data.event?.id) {
+      return false;
+    }
+
+    currentEventId = data.event.id;
+    currentTicketId = data.event.ticket_id || data.ticket_id || null;
+    setFollowupMinimized(true);
+
+    localStorage.setItem("event_id", currentEventId);
+    if (currentTicketId) {
+      localStorage.setItem("ticket_id", currentTicketId);
+    }
+
+    eventIdLabel.textContent = currentEventId;
+    eventStatus.textContent = data.effective_state || data.event.effective_state || data.event.state || "ACTIVO";
+    updateTicketLabels();
+
+    if (data.neighbor_progress) {
+      renderCaseProgress(data.neighbor_progress);
+    }
+
+    updateResumeFollowupCard(`Caso activo · ${eventStatus.textContent}`);
+    return true;
+  } catch (error) {
+    console.warn("No se pudo recuperar caso activo", error);
+    return false;
+  }
+}
+
+function showHome(options = {}) {
+  if (currentEventId && !followupMinimized && !options.force) return;
 
   if (!isNeighborRegistered()) {
     showAuth();
@@ -532,7 +613,10 @@ function showHome() {
   sosButton.disabled = false;
   confirmButton.disabled = false;
   backButton.disabled = false;
-  statusLabel.textContent = "Lista para usar";
+  updateResumeFollowupCard();
+  statusLabel.textContent = currentEventId && followupMinimized
+    ? "Tienes un caso activo en seguimiento"
+    : "Lista para usar";
 }
 
 function showCategories() {
@@ -554,6 +638,7 @@ function showCategories() {
 }
 
 function showActiveAlert() {
+  setFollowupMinimized(false);
   authPanel.hidden = true;
   profilePanel.hidden = true;
   homePanel.hidden = true;
@@ -650,6 +735,7 @@ async function sendSOS() {
     currentTicketId = data.ticket_id || null;
 
     localStorage.setItem("event_id", currentEventId);
+    setFollowupMinimized(false);
     if (currentTicketId) {
       localStorage.setItem("ticket_id", currentTicketId);
     }
@@ -698,17 +784,11 @@ async function leaveFollowup() {
     }
   }
 
-  currentEventId = null;
-  currentTicketId = null;
-  localStorage.removeItem("event_id");
-  localStorage.removeItem("ticket_id");
-
-  eventIdLabel.textContent = "-";
-  eventStatus.textContent = "NORMAL";
-  updateTicketLabels();
+  setFollowupMinimized(true);
+  updateResumeFollowupCard("La central mantiene el caso activo");
   statusLabel.textContent = "Volviste al inicio. La central mantiene el caso.";
 
-  showHome();
+  showHome({ force: true });
 }
 
 async function cancelSOS() {
@@ -736,16 +816,11 @@ async function cancelSOS() {
       throw new Error("Error HTTP " + res.status);
     }
 
-    currentEventId = null;
-    currentTicketId = null;
-    localStorage.removeItem("event_id");
-    localStorage.removeItem("ticket_id");
+    clearCurrentCaseLocal();
 
     eventStatus.textContent = "CANCELADO";
-    eventIdLabel.textContent = "-";
-    updateTicketLabels();
     statusLabel.textContent = "Alerta cancelada";
-    showHome();
+    showHome({ force: true });
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo cancelar la alerta";
@@ -792,16 +867,12 @@ async function refreshStatus() {
     statusLabel.textContent = currentTicketId
       ? `Estado: ${state} · ${shortTicketId(currentTicketId)}`
       : "Estado: " + state;
+    updateResumeFollowupCard(`Estado: ${state}`);
 
     if (terminalStates.includes(state)) {
       const finishedTicket = currentTicketId;
 
-      currentEventId = null;
-      currentTicketId = null;
-      localStorage.removeItem("event_id");
-      localStorage.removeItem("ticket_id");
-      eventIdLabel.textContent = "-";
-      updateTicketLabels();
+      clearCurrentCaseLocal();
 
       statusLabel.textContent =
         state === "RESOLVED"
@@ -810,7 +881,7 @@ async function refreshStatus() {
             ? `Caso cerrado · ${shortTicketId(finishedTicket)}`
             : "Alerta cancelada";
 
-      setTimeout(showHome, 1800);
+      setTimeout(() => showHome({ force: true }), 1800);
       return;
     }
   } catch (error) {
@@ -1054,6 +1125,19 @@ async function requestCall(mode) {
   }
 }
 
+
+function resumeFollowup() {
+  if (!currentEventId && !currentTicketId) {
+    statusLabel.textContent = "No tienes casos activos en seguimiento";
+    updateResumeFollowupCard();
+    return;
+  }
+
+  setFollowupMinimized(false);
+  showActiveAlert();
+  refreshStatus();
+}
+
 document.querySelectorAll(".emergency-option").forEach(button => {
   button.addEventListener("click", () => {
     document
@@ -1073,6 +1157,7 @@ confirmButton.addEventListener("click", sendSOS);
 backButton.addEventListener("click", showHome);
 cancelButton.addEventListener("click", cancelSOS);
 leaveFollowupButton.addEventListener("click", leaveFollowup);
+resumeFollowupButton?.addEventListener("click", resumeFollowup);
 voiceButton.addEventListener("click", () => requestCall("voice"));
 videoCallButton.addEventListener("click", () => requestCall("video"));
 textButton.addEventListener("click", () => {
@@ -1101,20 +1186,39 @@ logoutButton.addEventListener("click", () => {
 
 setInterval(refreshStatus, 5000);
 
-if (currentEventId) {
-  eventIdLabel.textContent = currentEventId;
+async function initializeApp() {
   updateTicketLabels();
-  eventStatus.textContent = "RECUPERANDO";
-  statusLabel.textContent = "Recuperando alerta activa...";
-  showActiveAlert();
-  resetCaseProgress();
-  refreshStatus();
-} else {
-  updateTicketLabels();
+
+  if (currentEventId) {
+    eventIdLabel.textContent = currentEventId;
+    eventStatus.textContent = "RECUPERANDO";
+    statusLabel.textContent = "Recuperando alerta activa...";
+    resetCaseProgress();
+
+    if (followupMinimized) {
+      updateProfileCard();
+      updateResumeFollowupCard("Recuperando seguimiento...");
+      showHome({ force: true });
+    } else {
+      showActiveAlert();
+    }
+
+    refreshStatus();
+    return;
+  }
+
   if (isNeighborRegistered()) {
     updateProfileCard();
-    showHome();
+    const recovered = await recoverActiveCase();
+
+    if (recovered) {
+      showHome({ force: true });
+    } else {
+      showHome({ force: true });
+    }
   } else {
     showAuth();
   }
 }
+
+initializeApp();
