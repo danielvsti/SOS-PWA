@@ -826,3 +826,32 @@ button:disabled {
   70% { box-shadow: 0 0 0 14px rgba(245, 158, 11, 0); }
   100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
+
+.otp-input {
+  text-align: center;
+  letter-spacing: .35em;
+  font-size: 28px !important;
+  font-weight: 900;
+}
+
+.otp-demo-code {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-weight: 800;
+  text-align: center;
+}
+
+#loginBlock,
+#registerBlock,
+#otpBlock {
+  animation: fadeIn .18s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

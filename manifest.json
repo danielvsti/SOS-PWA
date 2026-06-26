@@ -5,6 +5,5 @@
   "display": "standalone",
   "background_color": "#f3f4f6",
   "theme_color": "#dc2626",
-  "description": "PWA vecinal para registro y reporte de emergencias al sistema SOS Municipal",
   "icons": []
 }

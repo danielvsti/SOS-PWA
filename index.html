@@ -35,54 +35,93 @@
 
     <section id="authPanel" class="auth-panel" hidden>
       <div class="auth-card">
-        <h2>Registro del vecino</h2>
-        <p class="helper-text">
-          Regístrate para que la central reciba tu nombre, teléfono, dirección y contactos de emergencia.
-        </p>
+        <div id="loginBlock">
+          <h2>Ingresar al sistema</h2>
+          <p class="helper-text">
+            Ingresa con tu teléfono registrado. Te enviaremos un código de verificación.
+          </p>
 
-        <label>Nombre completo *</label>
-        <input id="regFullName" type="text" autocomplete="name" placeholder="Nombre y apellido">
+          <label>Teléfono registrado</label>
+          <input id="loginPhone" type="tel" autocomplete="tel" placeholder="+569XXXXXXXX">
 
-        <label>Teléfono *</label>
-        <input id="regPhone" type="tel" autocomplete="tel" placeholder="+569XXXXXXXX">
+          <button id="requestCodeButton" class="primary-action" type="button">
+            Enviar código
+          </button>
 
-        <label>RUT</label>
-        <input id="regRut" type="text" placeholder="Opcional">
+          <button id="showRegisterButton" class="secondary-action" type="button">
+            No estoy registrado / Registrarme
+          </button>
+        </div>
 
-        <label>Email</label>
-        <input id="regEmail" type="email" autocomplete="email" placeholder="Opcional">
+        <div id="registerBlock" hidden>
+          <h2>Registro del vecino</h2>
+          <p class="helper-text">
+            Regístrate para que la central reciba tu nombre, teléfono, dirección y contactos de emergencia.
+          </p>
 
-        <label>Dirección declarada *</label>
-        <input id="regAddress" type="text" autocomplete="street-address" placeholder="Calle, número, depto, sector">
+          <label>Nombre completo *</label>
+          <input id="regFullName" type="text" autocomplete="name" placeholder="Nombre y apellido">
 
-        <button id="homeLocationButton" class="secondary-action compact-dark" type="button">
-          📍 Usar GPS como domicilio
-        </button>
+          <label>Teléfono propio *</label>
+          <input id="regPhone" type="tel" autocomplete="tel" placeholder="+569XXXXXXXX">
 
-        <div id="homeLocationStatus" class="small-muted">Domicilio GPS pendiente</div>
+          <label>RUT</label>
+          <input id="regRut" type="text" placeholder="Opcional">
 
-        <div class="contact-subtitle">Contacto de emergencia 1</div>
-        <input id="contact1Name" type="text" placeholder="Nombre contacto">
-        <input id="contact1Phone" type="tel" placeholder="Teléfono contacto">
-        <input id="contact1Relation" type="text" placeholder="Relación: familiar, vecino, conserje...">
+          <label>Email</label>
+          <input id="regEmail" type="email" autocomplete="email" placeholder="Opcional">
 
-        <div class="contact-subtitle">Contacto de emergencia 2</div>
-        <input id="contact2Name" type="text" placeholder="Nombre contacto">
-        <input id="contact2Phone" type="tel" placeholder="Teléfono contacto">
-        <input id="contact2Relation" type="text" placeholder="Relación">
+          <label>Dirección declarada *</label>
+          <input id="regAddress" type="text" autocomplete="street-address" placeholder="Calle, número, depto, sector">
 
-        <button id="registerButton" class="primary-action" type="button">
-          Registrar / actualizar datos
-        </button>
+          <button id="homeLocationButton" class="secondary-action compact-dark" type="button">
+            📍 Usar GPS como domicilio
+          </button>
 
-        <div class="auth-divider">Ya estoy registrado</div>
+          <div id="homeLocationStatus" class="small-muted">Domicilio GPS pendiente</div>
 
-        <label>Ingresar por teléfono</label>
-        <input id="loginPhone" type="tel" autocomplete="tel" placeholder="+569XXXXXXXX">
+          <div class="contact-subtitle">Contacto de emergencia 1</div>
+          <input id="contact1Name" type="text" placeholder="Nombre contacto">
+          <input id="contact1Phone" type="tel" placeholder="Teléfono contacto">
+          <input id="contact1Relation" type="text" placeholder="Relación: familiar, vecino, conserje...">
 
-        <button id="loginButton" class="secondary-action" type="button">
-          Ingresar
-        </button>
+          <div class="contact-subtitle">Contacto de emergencia 2</div>
+          <input id="contact2Name" type="text" placeholder="Nombre contacto">
+          <input id="contact2Phone" type="tel" placeholder="Teléfono contacto">
+          <input id="contact2Relation" type="text" placeholder="Relación">
+
+          <button id="registerButton" class="primary-action" type="button">
+            Registrar y enviar código
+          </button>
+
+          <button id="backToLoginButton" class="secondary-action" type="button">
+            Volver al ingreso
+          </button>
+        </div>
+
+        <div id="otpBlock" hidden>
+          <h2>Validar código</h2>
+          <p id="otpHelpText" class="helper-text">
+            Ingresa el código de 6 dígitos enviado a tu teléfono.
+          </p>
+
+          <label>Código de verificación</label>
+          <input id="otpCode" class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="000000">
+
+          <button id="verifyCodeButton" class="primary-action" type="button">
+            Validar código
+          </button>
+
+          <button id="resendCodeButton" class="secondary-action" type="button">
+            Reenviar código
+          </button>
+
+          <button id="otpBackButton" class="neutral-action" type="button">
+            Cambiar teléfono
+          </button>
+
+          <div id="otpDemoCode" class="otp-demo-code" hidden></div>
+        </div>
       </div>
     </section>
 

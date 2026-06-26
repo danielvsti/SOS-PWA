@@ -25,6 +25,18 @@ const incomingCallTitle = document.getElementById("incomingCallTitle");
 const incomingCallText = document.getElementById("incomingCallText");
 
 const authPanel = document.getElementById("authPanel");
+const loginBlock = document.getElementById("loginBlock");
+const registerBlock = document.getElementById("registerBlock");
+const otpBlock = document.getElementById("otpBlock");
+const otpHelpText = document.getElementById("otpHelpText");
+const otpCode = document.getElementById("otpCode");
+const otpDemoCode = document.getElementById("otpDemoCode");
+const requestCodeButton = document.getElementById("requestCodeButton");
+const showRegisterButton = document.getElementById("showRegisterButton");
+const backToLoginButton = document.getElementById("backToLoginButton");
+const verifyCodeButton = document.getElementById("verifyCodeButton");
+const resendCodeButton = document.getElementById("resendCodeButton");
+const otpBackButton = document.getElementById("otpBackButton");
 const profilePanel = document.getElementById("profilePanel");
 const profileName = document.getElementById("profileName");
 const profileMeta = document.getElementById("profileMeta");
@@ -43,7 +55,7 @@ const contact2Phone = document.getElementById("contact2Phone");
 const contact2Relation = document.getElementById("contact2Relation");
 const registerButton = document.getElementById("registerButton");
 const loginPhone = document.getElementById("loginPhone");
-const loginButton = document.getElementById("loginButton");
+const loginButton = document.getElementById("loginButton"); // legacy fallback
 const editProfileButton = document.getElementById("editProfileButton");
 const logoutButton = document.getElementById("logoutButton");
 
@@ -98,6 +110,9 @@ let recordingTimerInterval = null;
 let recordingStartedAt = null;
 let activeIncomingCall = null;
 let handledCallActionIds = JSON.parse(localStorage.getItem("handled_call_action_ids") || "[]");
+let pendingOtpPhone = localStorage.getItem("pending_otp_phone") || null;
+let pendingOtpPurpose = localStorage.getItem("pending_otp_purpose") || "LOGIN";
+let pendingOtpMode = localStorage.getItem("pending_otp_mode") || "login";
 
 const alertDefinitions = {
   SOS_MANUAL: {
@@ -206,15 +221,122 @@ function buildEmergencyContacts() {
   return contacts;
 }
 
-function showAuth() {
+function resetOtpDemo() {
+  if (!otpDemoCode) return;
+  otpDemoCode.hidden = true;
+  otpDemoCode.textContent = "";
+}
+
+function showOtpDemoCode(code) {
+  if (!otpDemoCode) return;
+
+  if (code) {
+    otpDemoCode.hidden = false;
+    otpDemoCode.textContent = `Código demo: ${code}`;
+  } else {
+    resetOtpDemo();
+  }
+}
+
+function showLogin() {
   homePanel.hidden = true;
   categoryPanel.hidden = true;
   activePanel.hidden = true;
   profilePanel.hidden = true;
   authPanel.hidden = false;
+  loginBlock.hidden = false;
+  registerBlock.hidden = true;
+  otpBlock.hidden = true;
   cancelButton.hidden = true;
-  statusLabel.textContent = "Registra o ingresa tu teléfono";
+  resetOtpDemo();
+  statusLabel.textContent = "Ingresa con tu teléfono registrado";
   fillRegisterFormFromProfile();
+}
+
+function showRegister() {
+  homePanel.hidden = true;
+  categoryPanel.hidden = true;
+  activePanel.hidden = true;
+  profilePanel.hidden = true;
+  authPanel.hidden = false;
+  loginBlock.hidden = true;
+  registerBlock.hidden = false;
+  otpBlock.hidden = true;
+  cancelButton.hidden = true;
+  resetOtpDemo();
+  statusLabel.textContent = "Registro de vecino";
+  fillRegisterFormFromProfile();
+}
+
+function showOtp({ phone, purpose = "LOGIN", mode = "login", demoCode = null } = {}) {
+  pendingOtpPhone = normalizePhone(phone || pendingOtpPhone);
+  pendingOtpPurpose = purpose || pendingOtpPurpose || "LOGIN";
+  pendingOtpMode = mode || pendingOtpMode || "login";
+
+  localStorage.setItem("pending_otp_phone", pendingOtpPhone);
+  localStorage.setItem("pending_otp_purpose", pendingOtpPurpose);
+  localStorage.setItem("pending_otp_mode", pendingOtpMode);
+
+  homePanel.hidden = true;
+  categoryPanel.hidden = true;
+  activePanel.hidden = true;
+  profilePanel.hidden = true;
+  authPanel.hidden = false;
+  loginBlock.hidden = true;
+  registerBlock.hidden = true;
+  otpBlock.hidden = false;
+  cancelButton.hidden = true;
+  otpCode.value = "";
+  otpHelpText.textContent = `Ingresa el código enviado a ${pendingOtpPhone}.`;
+  showOtpDemoCode(demoCode);
+  statusLabel.textContent = "Código enviado";
+  setTimeout(() => otpCode.focus(), 100);
+}
+
+function showAuth() {
+  showLogin();
+}
+
+async function requestLoginCode() {
+  const phone = normalizePhone(loginPhone.value || regPhone.value);
+
+  if (!phone) {
+    alert("Ingresa el teléfono registrado.");
+    return;
+  }
+
+  requestCodeButton.disabled = true;
+  statusLabel.textContent = "Enviando código...";
+
+  try {
+    const res = await fetch(`${API}/auth/request-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone,
+        purpose: "LOGIN"
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "ok") {
+      throw new Error(data.message || "No se pudo enviar el código");
+    }
+
+    showOtp({
+      phone,
+      purpose: "LOGIN",
+      mode: "login",
+      demoCode: data.demo_code || null
+    });
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo enviar el código";
+    alert(error.message || "No se pudo enviar el código");
+  } finally {
+    requestCodeButton.disabled = false;
+  }
 }
 
 async function registerNeighbor() {
@@ -228,7 +350,7 @@ async function registerNeighbor() {
   }
 
   registerButton.disabled = true;
-  statusLabel.textContent = "Registrando vecino...";
+  statusLabel.textContent = "Registrando y enviando código...";
 
   try {
     const payload = {
@@ -240,7 +362,8 @@ async function registerNeighbor() {
       declared_address: declaredAddress,
       latitude: homeLatitude ? Number(homeLatitude) : null,
       longitude: homeLongitude ? Number(homeLongitude) : null,
-      emergency_contacts: buildEmergencyContacts()
+      emergency_contacts: buildEmergencyContacts(),
+      otp_channel: "demo"
     };
 
     const res = await fetch(`${API}/auth/register`, {
@@ -255,11 +378,13 @@ async function registerNeighbor() {
       throw new Error(data.message || "No se pudo registrar");
     }
 
-    saveNeighborProfile(data.user);
-    updateProfileCard();
-    statusLabel.textContent = `Vecino registrado · ${data.user.validation_status || "PROVISIONAL_ACTIVE"}`;
-    await recoverActiveCase();
-    showHome({ force: true });
+    statusLabel.textContent = "Registro recibido. Valida el código.";
+    showOtp({
+      phone,
+      purpose: "REGISTER",
+      mode: "register",
+      demoCode: data.demo_code || null
+    });
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo registrar el vecino";
@@ -269,28 +394,33 @@ async function registerNeighbor() {
   }
 }
 
-async function loginNeighbor() {
-  const phone = normalizePhone(loginPhone.value || regPhone.value);
+async function verifyOtpCode() {
+  const phone = normalizePhone(pendingOtpPhone || loginPhone.value || regPhone.value);
+  const code = String(otpCode.value || "").trim();
 
-  if (!phone) {
-    alert("Ingresa el teléfono registrado.");
+  if (!phone || !code) {
+    alert("Ingresa el código recibido.");
     return;
   }
 
-  loginButton.disabled = true;
-  statusLabel.textContent = "Ingresando...";
+  verifyCodeButton.disabled = true;
+  statusLabel.textContent = "Validando código...";
 
   try {
-    const res = await fetch(`${API}/auth/login-demo`, {
+    const res = await fetch(`${API}/auth/verify-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone })
+      body: JSON.stringify({
+        phone,
+        code,
+        purpose: pendingOtpPurpose || null
+      })
     });
 
     const data = await res.json();
 
     if (!res.ok || data.status !== "ok") {
-      throw new Error(data.message || "Usuario no encontrado");
+      throw new Error(data.message || "Código inválido");
     }
 
     if (data.user.role !== "NEIGHBOR") {
@@ -299,16 +429,71 @@ async function loginNeighbor() {
 
     saveNeighborProfile(data.user);
     updateProfileCard();
+    localStorage.removeItem("pending_otp_phone");
+    localStorage.removeItem("pending_otp_purpose");
+    localStorage.removeItem("pending_otp_mode");
+    resetOtpDemo();
     statusLabel.textContent = `Bienvenido/a, ${data.user.full_name}`;
     await recoverActiveCase();
     showHome({ force: true });
   } catch (error) {
     console.error(error);
-    statusLabel.textContent = "No se pudo ingresar";
-    alert(error.message || "No se pudo ingresar");
+    statusLabel.textContent = "No se pudo validar el código";
+    alert(error.message || "No se pudo validar el código");
   } finally {
-    loginButton.disabled = false;
+    verifyCodeButton.disabled = false;
   }
+}
+
+async function resendOtpCode() {
+  const phone = normalizePhone(pendingOtpPhone || loginPhone.value || regPhone.value);
+
+  if (!phone) {
+    showLogin();
+    return;
+  }
+
+  resendCodeButton.disabled = true;
+  statusLabel.textContent = "Reenviando código...";
+
+  try {
+    if (pendingOtpMode === "register") {
+      await registerNeighbor();
+      return;
+    }
+
+    const res = await fetch(`${API}/auth/request-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone,
+        purpose: pendingOtpPurpose || "LOGIN"
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "ok") {
+      throw new Error(data.message || "No se pudo reenviar el código");
+    }
+
+    showOtp({
+      phone,
+      purpose: pendingOtpPurpose || "LOGIN",
+      mode: pendingOtpMode || "login",
+      demoCode: data.demo_code || null
+    });
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = "No se pudo reenviar el código";
+    alert(error.message || "No se pudo reenviar el código");
+  } finally {
+    resendCodeButton.disabled = false;
+  }
+}
+
+async function loginNeighbor() {
+  return requestLoginCode();
 }
 
 async function useHomeLocation() {
@@ -1171,9 +1356,18 @@ rejectCallButton.addEventListener("click", () => respondIncomingCall("REJECTED")
 videoUploadButton.addEventListener("click", () => videoInput.click());
 videoInput.addEventListener("change", uploadSelectedVideo);
 registerButton.addEventListener("click", registerNeighbor);
-loginButton.addEventListener("click", loginNeighbor);
+loginButton?.addEventListener("click", loginNeighbor);
+requestCodeButton?.addEventListener("click", requestLoginCode);
+showRegisterButton?.addEventListener("click", showRegister);
+backToLoginButton?.addEventListener("click", showLogin);
+verifyCodeButton?.addEventListener("click", verifyOtpCode);
+resendCodeButton?.addEventListener("click", resendOtpCode);
+otpBackButton?.addEventListener("click", showLogin);
+otpCode?.addEventListener("keyup", (event) => {
+  if (event.key === "Enter") verifyOtpCode();
+});
 homeLocationButton.addEventListener("click", useHomeLocation);
-editProfileButton.addEventListener("click", showAuth);
+editProfileButton.addEventListener("click", showRegister);
 logoutButton.addEventListener("click", () => {
   if (currentEventId) {
     alert("No puedes salir del perfil mientras hay una alerta activa. Primero vuelve al inicio sin cancelar o cancela la alerta si fue falsa alarma.");
