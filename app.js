@@ -165,6 +165,40 @@ function isNeighborRegistered() {
   return !!(userId && neighborProfile?.id);
 }
 
+function isNeighborAccountAllowed(profile = neighborProfile) {
+  if (!profile) return false;
+
+  const blockedStatuses = [
+    "PENDING_VERIFICATION",
+    "REJECTED",
+    "SUSPENDED"
+  ];
+
+  return profile.is_active !== false && !blockedStatuses.includes(profile.validation_status);
+}
+
+function getNeighborBlockReason(profile = neighborProfile) {
+  if (!profile) return "Debes ingresar nuevamente.";
+
+  if (profile.is_active === false) {
+    return "Tu cuenta está suspendida o inactiva. Contacta a la central municipal.";
+  }
+
+  if (profile.validation_status === "REJECTED") {
+    return "Tu registro fue rechazado por la central municipal.";
+  }
+
+  if (profile.validation_status === "SUSPENDED") {
+    return "Tu cuenta está suspendida por la central municipal.";
+  }
+
+  if (profile.validation_status === "PENDING_VERIFICATION") {
+    return "Debes validar tu teléfono antes de usar SOS.";
+  }
+
+  return null;
+}
+
 function saveNeighborProfile(user) {
   neighborProfile = user;
   userId = user.id;
@@ -182,8 +216,63 @@ function clearNeighborProfile() {
 function updateProfileCard() {
   if (!neighborProfile) return;
 
+  const status = neighborProfile.validation_status || "PROVISIONAL_ACTIVE";
+  const activeText = neighborProfile.is_active === false ? "CUENTA SUSPENDIDA" : status;
+
   profileName.textContent = neighborProfile.full_name || "Vecino registrado";
-  profileMeta.textContent = `${neighborProfile.phone || "sin teléfono"} · ${neighborProfile.validation_status || "PROVISIONAL_ACTIVE"}`;
+  profileMeta.textContent = `${neighborProfile.phone || "sin teléfono"} · ${activeText}`;
+}
+
+async function refreshNeighborProfileFromServer(options = {}) {
+  if (!userId) return false;
+
+  try {
+    const res = await fetch(`${API}/auth/me?user_id=${encodeURIComponent(userId)}`);
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "ok") {
+      throw new Error(data.message || "No se pudo actualizar perfil");
+    }
+
+    if (data.user) {
+      saveNeighborProfile(data.user);
+      updateProfileCard();
+    }
+
+    const allowed = data.can_use_sos !== false && isNeighborAccountAllowed(data.user);
+
+    if (!allowed) {
+      const message = data.block_reason || getNeighborBlockReason(data.user);
+      statusLabel.textContent = "Cuenta no habilitada";
+
+      if (options.alertOnBlocked) {
+        alert(message || "Tu cuenta no está habilitada para generar SOS.");
+      }
+    }
+
+    return allowed;
+  } catch (error) {
+    console.warn("No se pudo refrescar perfil del vecino", error);
+    return isNeighborAccountAllowed();
+  }
+}
+
+async function ensureNeighborCanUseSOS() {
+  if (!isNeighborRegistered()) {
+    showAuth();
+    return false;
+  }
+
+  const allowed = await refreshNeighborProfileFromServer({ alertOnBlocked: true });
+
+  if (!allowed) {
+    showHome({ force: true });
+    sosButton.disabled = true;
+    return false;
+  }
+
+  sosButton.disabled = false;
+  return true;
 }
 
 function fillRegisterFormFromProfile() {
@@ -795,20 +884,21 @@ function showHome(options = {}) {
   textPanel.hidden = true;
   audioPanel.hidden = true;
   cancelButton.hidden = true;
-  sosButton.disabled = false;
-  confirmButton.disabled = false;
+  sosButton.disabled = !isNeighborAccountAllowed();
+  confirmButton.disabled = !isNeighborAccountAllowed();
   backButton.disabled = false;
   updateResumeFollowupCard();
-  statusLabel.textContent = currentEventId && followupMinimized
-    ? "Tienes un caso activo en seguimiento"
-    : "Lista para usar";
+  if (!isNeighborAccountAllowed()) {
+    statusLabel.textContent = "Cuenta no habilitada";
+  } else {
+    statusLabel.textContent = currentEventId && followupMinimized
+      ? "Tienes un caso activo en seguimiento"
+      : "Lista para usar";
+  }
 }
 
-function showCategories() {
-  if (!isNeighborRegistered()) {
-    showAuth();
-    return;
-  }
+async function showCategories() {
+  if (!(await ensureNeighborCanUseSOS())) return;
 
   if (currentEventId) {
     statusLabel.textContent = "Ya existe una alerta activa";
@@ -868,6 +958,8 @@ function requireTicket() {
 }
 
 async function sendSOS() {
+  if (!(await ensureNeighborCanUseSOS())) return;
+
   if (currentEventId) {
     statusLabel.textContent = "Ya existe una alerta activa";
     showActiveAlert();
@@ -910,11 +1002,11 @@ async function sendSOS() {
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-      throw new Error("Error HTTP " + res.status);
-    }
-
     const data = await res.json();
+
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || ("Error HTTP " + res.status));
+    }
 
     currentEventId = data.event_id;
     currentTicketId = data.ticket_id || null;
@@ -1021,11 +1113,11 @@ async function refreshStatus() {
   try {
     const res = await fetch(`${API}/public/mobile/status/${currentEventId}`);
 
-    if (!res.ok) {
-      throw new Error("Error HTTP " + res.status);
-    }
-
     const data = await res.json();
+
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || ("Error HTTP " + res.status));
+    }
     const event = data?.event || {};
     const terminalStates = ["CANCELLED", "CLOSED", "RESOLVED"];
 
@@ -1379,6 +1471,11 @@ logoutButton.addEventListener("click", () => {
 });
 
 setInterval(refreshStatus, 5000);
+setInterval(() => {
+  if (isNeighborRegistered() && !currentEventId) {
+    refreshNeighborProfileFromServer();
+  }
+}, 30000);
 
 async function initializeApp() {
   updateTicketLabels();
@@ -1403,6 +1500,7 @@ async function initializeApp() {
 
   if (isNeighborRegistered()) {
     updateProfileCard();
+    await refreshNeighborProfileFromServer();
     const recovered = await recoverActiveCase();
 
     if (recovered) {
