@@ -1,9 +1,10 @@
 {
-  "name": "Sistema SOS Municipal",
+  "name": "SOS Municipal Vecino",
   "short_name": "SOS Municipal",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f3f4f6",
   "theme_color": "#dc2626",
-  "icons": []
+  "icons": [],
+  "description": "App vecino del Sistema SOS Municipal VS&TI"
 }

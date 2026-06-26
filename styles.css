@@ -855,3 +855,96 @@ button:disabled {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* v26 - sensores móviles / retiro temporal llamadas */
+.sensor-card,
+.fall-confirm-card {
+  margin: 18px auto;
+  max-width: 520px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, .10);
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .08);
+  text-align: left;
+}
+
+.sensor-head,
+.fall-confirm-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sensor-head span,
+.fall-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: #f1f5f9;
+  font-size: 22px;
+  flex: 0 0 auto;
+}
+
+.sensor-head p,
+.fall-content p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.sensor-actions {
+  margin-top: 12px;
+}
+
+.sensor-status {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.sensor-status.active {
+  color: #166534;
+  font-weight: 700;
+}
+
+.sensor-status.warning {
+  color: #b45309;
+  font-weight: 700;
+}
+
+.sensor-status.danger {
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.fall-confirm-card {
+  border-color: rgba(245, 158, 11, .45);
+  background: #fffbeb;
+}
+
+.fall-countdown {
+  margin-top: 10px;
+  font-weight: 800;
+  color: #92400e;
+}
+
+.fall-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.communication-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.communication-grid .wide {
+  grid-column: 1 / -1;
+}

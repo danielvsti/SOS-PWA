@@ -92,6 +92,12 @@ const caseProgressSteps = document.getElementById("caseProgressSteps");
 const resolverContactCard = document.getElementById("resolverContactCard");
 const resolverContactName = document.getElementById("resolverContactName");
 const resolverContactText = document.getElementById("resolverContactText");
+const sensorToggleButton = document.getElementById("sensorToggleButton");
+const sensorStatus = document.getElementById("sensorStatus");
+const fallConfirmPanel = document.getElementById("fallConfirmPanel");
+const fallCountdown = document.getElementById("fallCountdown");
+const fallOkButton = document.getElementById("fallOkButton");
+const fallHelpButton = document.getElementById("fallHelpButton");
 
 if (neighborProfile?.id && !userId) {
   userId = neighborProfile.id;
@@ -133,6 +139,14 @@ const alertDefinitions = {
   },
   VIF: {
     title: "Violencia Intrafamiliar",
+    priority: 1
+  },
+  VIF_SILENT_SHAKE: {
+    title: "Alerta silenciosa VIF",
+    priority: 1
+  },
+  FALL_DETECTED: {
+    title: "Posible caída / emergencia médica",
     priority: 1
   },
   TRAFFIC_ACCIDENT: {
@@ -774,21 +788,8 @@ function stopRecordingUI() {
 }
 
 function showIncomingCall(request) {
-  if (!request || handledCallActionIds.includes(request.id)) return;
-
-  activeIncomingCall = request;
-  const isVideo = request.mode === "video";
-
-  incomingCallIcon.textContent = isVideo ? "🎥" : "📞";
-  incomingCallTitle.textContent = isVideo
-    ? "La central solicita videollamada"
-    : "La central solicita llamada de voz";
-  incomingCallText.textContent = isVideo
-    ? "La central solicita coordinar una videollamada para este caso. Aceptar solo notificará a la central; la llamada real se habilitará en la siguiente versión."
-    : "La central solicita coordinar una llamada de voz para este caso. Aceptar solo notificará a la central; la llamada real se habilitará en la siguiente versión.";
-
-  incomingCallPanel.hidden = false;
-  navigator.vibrate?.([180, 120, 180]);
+  // v26: llamadas/videollamadas temporalmente deshabilitadas hasta integración WA-CENTER/WebRTC.
+  return;
 }
 
 async function respondIncomingCall(response) {
@@ -1033,6 +1034,289 @@ async function sendSOS() {
   } finally {
     setSendingState(false);
   }
+}
+
+
+async function sendMobileSOSPayload({ alert_type, title, priority = 1, description, source = "mobile_pwa", sensor_event_type = null, silent = false, confidence = null }) {
+  if (!(await ensureNeighborCanUseSOS())) return false;
+
+  if (currentEventId) {
+    statusLabel.textContent = silent ? "Solicitud recibida" : "Ya existe una alerta activa";
+    if (!silent) showActiveAlert();
+    return false;
+  }
+
+  statusLabel.textContent = silent ? "Actualizando ubicación..." : "Obteniendo ubicación...";
+  gpsStatus.textContent = "Buscando...";
+
+  try {
+    const position = await getCurrentPosition();
+    gpsStatus.textContent = "OK";
+    accuracyLabel.textContent = Math.round(position.coords.accuracy) + " m";
+
+    const payload = {
+      user_id: userId,
+      name: getNeighborName(),
+      phone: getNeighborPhone(),
+      source,
+      control_center_code: CONTROL_CENTER_CODE,
+      alert_type,
+      title,
+      description,
+      priority,
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: Math.round(position.coords.accuracy),
+      battery: null,
+      sensor_event_type,
+      confidence,
+      silent
+    };
+
+    const res = await fetch(`${API}/public/mobile/sos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || ("Error HTTP " + res.status));
+    }
+
+    currentEventId = data.event_id;
+    currentTicketId = data.ticket_id || null;
+    localStorage.setItem("event_id", currentEventId);
+    if (currentTicketId) localStorage.setItem("ticket_id", currentTicketId);
+
+    eventIdLabel.textContent = currentEventId;
+    eventStatus.textContent = "ACTIVO";
+    updateTicketLabels();
+    resetCaseProgress();
+
+    if (silent) {
+      setFollowupMinimized(true);
+      statusLabel.textContent = "Solicitud recibida";
+      updateResumeFollowupCard("Caso activo · solicitud recibida");
+      showHome({ force: true });
+    } else {
+      setFollowupMinimized(false);
+      statusLabel.textContent = currentTicketId
+        ? `Alerta enviada · ${shortTicketId(currentTicketId)}`
+        : "Alerta enviada";
+      showActiveAlert();
+    }
+
+    return true;
+  } catch (error) {
+    console.error(error);
+    gpsStatus.textContent = "ERROR";
+    statusLabel.textContent = "No se pudo enviar la alerta";
+    return false;
+  }
+}
+
+async function sendSilentVifFromShake() {
+  setSensorStatus("Alerta silenciosa enviada por agitación. Mantén la calma.", "danger");
+  return sendMobileSOSPayload({
+    alert_type: "VIF_SILENT_SHAKE",
+    title: "Alerta silenciosa VIF",
+    description: "Alerta silenciosa generada por triple agitación del teléfono. No llamar automáticamente; evaluar contacto discreto.",
+    priority: 1,
+    source: "mobile_sensor_shake",
+    sensor_event_type: "TRIPLE_SHAKE",
+    silent: true,
+    confidence: "HIGH"
+  });
+}
+
+async function sendFallDetectedSOS() {
+  hideFallConfirmation();
+  setSensorStatus("Enviando alerta por posible caída...", "warning");
+  return sendMobileSOSPayload({
+    alert_type: "FALL_DETECTED",
+    title: "Posible caída / emergencia médica",
+    description: "Evento generado por detección de caída o impacto fuerte del teléfono, sin cancelación del usuario.",
+    priority: 1,
+    source: "mobile_sensor_fall",
+    sensor_event_type: "FALL_IMPACT_NO_RESPONSE",
+    silent: false,
+    confidence: "MEDIUM"
+  });
+}
+
+let sensorsEnabled = false;
+let sensorUsingNativeMotion = false;
+let shakeTimestamps = [];
+let lastShakeAt = 0;
+let lastVifTriggerAt = 0;
+let fallCandidateAt = 0;
+let fallConfirmTimer = null;
+let fallConfirmInterval = null;
+let fallSecondsLeft = 25;
+
+const SENSOR_CFG = {
+  shakeThreshold: 23,
+  shakeWindowMs: 5000,
+  shakeMinGapMs: 450,
+  shakeCount: 3,
+  vifCooldownMs: 120000,
+  freefallThreshold: 3.2,
+  impactThreshold: 30,
+  fallImpactWindowMs: 1600,
+  fallCooldownMs: 90000,
+  fallConfirmSeconds: 25
+};
+
+function setSensorStatus(text, mode = "") {
+  if (!sensorStatus) return;
+  sensorStatus.textContent = text;
+  sensorStatus.classList.remove("active", "warning", "danger");
+  if (mode) sensorStatus.classList.add(mode);
+}
+
+function motionMagnitude(eventOrData) {
+  const src = eventOrData?.accelerationIncludingGravity || eventOrData?.acceleration || eventOrData || {};
+  const x = Number(src.x || 0);
+  const y = Number(src.y || 0);
+  const z = Number(src.z || 0);
+  return Math.sqrt(x * x + y * y + z * z);
+}
+
+function handleMotionSample(eventOrData) {
+  if (!sensorsEnabled || currentEventId) return;
+
+  const now = Date.now();
+  const magnitude = motionMagnitude(eventOrData);
+
+  // 1) Triple agitación: VIF silenciosa
+  if (magnitude >= SENSOR_CFG.shakeThreshold && (now - lastShakeAt) > SENSOR_CFG.shakeMinGapMs) {
+    lastShakeAt = now;
+    shakeTimestamps.push(now);
+    shakeTimestamps = shakeTimestamps.filter(ts => now - ts <= SENSOR_CFG.shakeWindowMs);
+    setSensorStatus(`Movimiento fuerte detectado (${shakeTimestamps.length}/3)`, "warning");
+
+    if (shakeTimestamps.length >= SENSOR_CFG.shakeCount && (now - lastVifTriggerAt) > SENSOR_CFG.vifCooldownMs) {
+      lastVifTriggerAt = now;
+      shakeTimestamps = [];
+      navigator.vibrate?.([80, 80, 80]);
+      sendSilentVifFromShake();
+      return;
+    }
+  }
+
+  // 2) Posible caída: baja aceleración + impacto fuerte posterior + no respuesta
+  if (magnitude <= SENSOR_CFG.freefallThreshold) {
+    fallCandidateAt = now;
+  }
+
+  if (fallCandidateAt && (now - fallCandidateAt) <= SENSOR_CFG.fallImpactWindowMs && magnitude >= SENSOR_CFG.impactThreshold) {
+    if (!fallConfirmTimer) {
+      navigator.vibrate?.([180, 120, 180]);
+      showFallConfirmation();
+    }
+    fallCandidateAt = 0;
+  }
+}
+
+async function requestMotionPermissionIfNeeded() {
+  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    const result = await DeviceMotionEvent.requestPermission();
+    if (result !== "granted") throw new Error("Permiso de movimiento no concedido");
+  }
+}
+
+async function startSensors() {
+  if (sensorsEnabled) return;
+  if (!(await ensureNeighborCanUseSOS())) return;
+
+  try {
+    await requestMotionPermissionIfNeeded();
+
+    const NativeMotion = window.Capacitor?.Plugins?.Motion;
+    if (NativeMotion?.addListener) {
+      await NativeMotion.addListener("accel", handleMotionSample);
+      sensorUsingNativeMotion = true;
+    } else {
+      window.addEventListener("devicemotion", handleMotionSample, { passive: true });
+      sensorUsingNativeMotion = false;
+    }
+
+    sensorsEnabled = true;
+    sensorToggleButton.textContent = "Desactivar sensores";
+    setSensorStatus("Activos · 3 agitaciones = VIF silenciosa · caída fuerte = confirmación", "active");
+  } catch (error) {
+    console.error(error);
+    setSensorStatus("No se pudo activar sensores: " + error.message, "danger");
+  }
+}
+
+async function stopSensors() {
+  sensorsEnabled = false;
+  window.removeEventListener("devicemotion", handleMotionSample);
+
+  try {
+    const NativeMotion = window.Capacitor?.Plugins?.Motion;
+    if (sensorUsingNativeMotion && NativeMotion?.removeAllListeners) {
+      await NativeMotion.removeAllListeners();
+    }
+  } catch (error) {
+    console.warn("No se pudieron limpiar listeners nativos", error);
+  }
+
+  sensorUsingNativeMotion = false;
+  shakeTimestamps = [];
+  lastShakeAt = 0;
+  fallCandidateAt = 0;
+  hideFallConfirmation();
+  if (sensorToggleButton) sensorToggleButton.textContent = "Activar sensores";
+  setSensorStatus("Desactivados · 3 agitaciones = alerta VIF silenciosa · caída fuerte = confirmación médica/accidente.");
+}
+
+function toggleSensors() {
+  if (sensorsEnabled) {
+    stopSensors();
+  } else {
+    startSensors();
+  }
+}
+
+function showFallConfirmation() {
+  if (!fallConfirmPanel) return;
+  fallSecondsLeft = SENSOR_CFG.fallConfirmSeconds;
+  fallConfirmPanel.hidden = false;
+  updateFallCountdown();
+
+  fallConfirmInterval = setInterval(() => {
+    fallSecondsLeft -= 1;
+    updateFallCountdown();
+    if (fallSecondsLeft <= 0) {
+      sendFallDetectedSOS();
+    }
+  }, 1000);
+
+  fallConfirmTimer = setTimeout(() => {
+    sendFallDetectedSOS();
+  }, SENSOR_CFG.fallConfirmSeconds * 1000);
+}
+
+function updateFallCountdown() {
+  if (fallCountdown) fallCountdown.textContent = `Enviando en ${fallSecondsLeft} s`;
+}
+
+function hideFallConfirmation() {
+  if (fallConfirmTimer) clearTimeout(fallConfirmTimer);
+  if (fallConfirmInterval) clearInterval(fallConfirmInterval);
+  fallConfirmTimer = null;
+  fallConfirmInterval = null;
+  if (fallConfirmPanel) fallConfirmPanel.hidden = true;
+}
+
+function cancelFallDetection() {
+  hideFallConfirmation();
+  fallCandidateAt = 0;
+  setSensorStatus("Caída descartada por usuario. Sensores siguen activos.", "active");
 }
 
 async function leaveFollowup() {
@@ -1364,42 +1648,8 @@ async function uploadSelectedVideo() {
 }
 
 async function requestCall(mode) {
-  if (!requireTicket()) return;
-
-  statusLabel.textContent = mode === "voice"
-    ? "Solicitando llamada de voz..."
-    : "Solicitando videollamada...";
-
-  try {
-    const res = await fetch(`${API}/tickets/${currentTicketId}/call-start`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        mode,
-        sender_role: "NEIGHBOR",
-        sender_name: getNeighborName()
-      })
-    });
-
-    if (!res.ok) {
-      throw new Error("Error HTTP " + res.status);
-    }
-
-    await res.json();
-    statusLabel.textContent = mode === "voice"
-      ? "Solicitud de llamada enviada a la central"
-      : "Solicitud de videollamada enviada a la central";
-
-    alert(mode === "voice"
-      ? "La central recibió tu solicitud de llamada. Mantente en esta pantalla y espera instrucciones."
-      : "La central recibió tu solicitud de videollamada. Mantente en esta pantalla y espera instrucciones."
-    );
-  } catch (error) {
-    console.error(error);
-    statusLabel.textContent = "No se pudo enviar la solicitud";
-  }
+  statusLabel.textContent = "Llamadas y videollamadas estarán disponibles en una próxima versión";
+  alert("Función temporalmente deshabilitada. Por ahora puedes enviar texto, audio o evidencia en video.");
 }
 
 
@@ -1435,16 +1685,19 @@ backButton.addEventListener("click", showHome);
 cancelButton.addEventListener("click", cancelSOS);
 leaveFollowupButton.addEventListener("click", leaveFollowup);
 resumeFollowupButton?.addEventListener("click", resumeFollowup);
-voiceButton.addEventListener("click", () => requestCall("voice"));
-videoCallButton.addEventListener("click", () => requestCall("video"));
+voiceButton?.addEventListener("click", () => requestCall("voice"));
+videoCallButton?.addEventListener("click", () => requestCall("video"));
 textButton.addEventListener("click", () => {
   textPanel.hidden = !textPanel.hidden;
 });
 sendTextButton.addEventListener("click", sendTextMessage);
 audioButton.addEventListener("click", toggleAudioRecording);
 stopAudioButton.addEventListener("click", toggleAudioRecording);
-acceptCallButton.addEventListener("click", () => respondIncomingCall("ACCEPTED"));
-rejectCallButton.addEventListener("click", () => respondIncomingCall("REJECTED"));
+acceptCallButton?.addEventListener("click", () => respondIncomingCall("ACCEPTED"));
+rejectCallButton?.addEventListener("click", () => respondIncomingCall("REJECTED"));
+sensorToggleButton?.addEventListener("click", toggleSensors);
+fallOkButton?.addEventListener("click", cancelFallDetection);
+fallHelpButton?.addEventListener("click", sendFallDetectedSOS);
 videoUploadButton.addEventListener("click", () => videoInput.click());
 videoInput.addEventListener("change", uploadSelectedVideo);
 registerButton.addEventListener("click", registerNeighbor);

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sistema SOS Municipal</title>
+  <meta name="app-version" content="v26-mobile-sensors">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
   <meta name="theme-color" content="#dc2626">
@@ -146,6 +147,37 @@
         Presiona el botón en caso de emergencia.
       </p>
 
+      <div id="sensorCard" class="sensor-card">
+        <div class="sensor-head">
+          <span>📱</span>
+          <div>
+            <strong>Sensores de emergencia</strong>
+            <p>Activa detección por movimiento mientras la app esté abierta.</p>
+          </div>
+        </div>
+        <div class="sensor-actions">
+          <button id="sensorToggleButton" class="secondary-action compact" type="button">
+            Activar sensores
+          </button>
+        </div>
+        <div id="sensorStatus" class="sensor-status">
+          Desactivados · 3 agitaciones = alerta VIF silenciosa · caída fuerte = confirmación médica/accidente.
+        </div>
+      </div>
+
+      <div id="fallConfirmPanel" class="fall-confirm-card" hidden>
+        <div class="fall-icon">⚠️</div>
+        <div class="fall-content">
+          <strong>Posible caída detectada</strong>
+          <p>Si estás bien, cancela. Si no respondes, enviaremos una alerta médica/accidente.</p>
+          <div id="fallCountdown" class="fall-countdown">Enviando en 25 s</div>
+          <div class="fall-actions">
+            <button id="fallOkButton" class="secondary-action compact" type="button">Estoy bien</button>
+            <button id="fallHelpButton" class="primary-action compact" type="button">Necesito ayuda</button>
+          </div>
+        </div>
+      </div>
+
       <div id="resumeFollowupCard" class="resume-followup-card" hidden>
         <div class="resume-followup-icon">🟡</div>
         <div class="resume-followup-content">
@@ -221,7 +253,7 @@
     <section id="activePanel" class="active-panel" hidden>
       <h2>Alerta enviada</h2>
       <p class="helper-text">
-        La central ya recibió tu emergencia. Puedes comunicarte sin salir de la aplicación.
+        La central ya recibió tu emergencia. Por ahora puedes enviar texto, audio o evidencia en video.
       </p>
 
       <div class="case-card">
@@ -248,20 +280,12 @@
       </div>
 
       <div class="communication-grid">
-        <button id="voiceButton" class="comm-button" type="button">
-          📞<span>Solicitar llamada</span>
-        </button>
-
         <button id="textButton" class="comm-button" type="button">
           💬<span>Mensaje texto</span>
         </button>
 
         <button id="audioButton" class="comm-button" type="button">
           🎙️<span>Mensaje audio</span>
-        </button>
-
-        <button id="videoCallButton" class="comm-button" type="button">
-          🎥<span>Solicitar videollamada</span>
         </button>
 
         <button id="videoUploadButton" class="comm-button wide" type="button">
