@@ -179,6 +179,30 @@ function isNeighborRegistered() {
   return !!(userId && neighborProfile?.id);
 }
 
+
+function blurEditableControls() {
+  const active = document.activeElement;
+  if (active && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName)) {
+    try { active.blur(); } catch (_) {}
+  }
+  try { window.getSelection?.().removeAllRanges?.(); } catch (_) {}
+}
+
+function enterSensorGestureMode() {
+  blurEditableControls();
+  document.body.classList.add("sensor-gesture-mode");
+}
+
+function exitSensorGestureMode() {
+  document.body.classList.remove("sensor-gesture-mode");
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && sensorsEnabled) {
+    enterSensorGestureMode();
+  }
+});
+
 function isNeighborAccountAllowed(profile = neighborProfile) {
   if (!profile) return false;
 
@@ -1200,6 +1224,7 @@ function handleMotionSample(eventOrData) {
     if (shakeTimestamps.length >= SENSOR_CFG.shakeCount && (now - lastVifTriggerAt) > SENSOR_CFG.vifCooldownMs) {
       lastVifTriggerAt = now;
       shakeTimestamps = [];
+      blurEditableControls();
       navigator.vibrate?.([80, 80, 80]);
       sendSilentVifFromShake();
       return;
@@ -1232,6 +1257,7 @@ async function startSensors() {
   if (!(await ensureNeighborCanUseSOS())) return;
 
   try {
+    enterSensorGestureMode();
     await requestMotionPermissionIfNeeded();
 
     const NativeMotion = window.Capacitor?.Plugins?.Motion;
@@ -1271,6 +1297,7 @@ async function stopSensors() {
   fallCandidateAt = 0;
   hideFallConfirmation();
   if (sensorToggleButton) sensorToggleButton.textContent = "Activar sensores";
+  exitSensorGestureMode();
   setSensorStatus("Desactivados · 3 agitaciones = alerta VIF silenciosa · caída fuerte = confirmación médica/accidente.");
 }
 
