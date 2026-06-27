@@ -1162,3 +1162,44 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
 .app-settings-section p { margin:8px 0; color:#556070; }
 .setting-row { display:flex; align-items:center; gap:10px; margin:9px 0; font-weight:800; color:#334155; }
 @media (max-width: 720px) { .app-settings-grid { grid-template-columns:1fr; } .settings-indicator { width:100%; } }
+
+
+/* v26.5: categoría visible del caso activo */
+.case-type-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 18px 0;
+  padding: 18px 20px;
+  border-radius: 24px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+}
+.case-type-card > span {
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  background: #e0f2fe;
+}
+.case-type-card div div {
+  color: #64748b;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+.case-type-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 22px;
+}
+.case-type-fire > span { background: #ffedd5; }
+.case-type-vif > span, .case-type-vif-silent-shake > span { background: #fce7f3; }
+.case-type-medical > span, .case-type-fall-detected > span { background: #dcfce7; }
+.case-type-security > span { background: #ede9fe; }
+.case-type-urban-risk > span { background: #fef3c7; }

@@ -85,6 +85,9 @@ const statusLabel = document.getElementById("status");
 const eventIdLabel = document.getElementById("eventId");
 const ticketIdLabel = document.getElementById("ticketId");
 const ticketIdShortLabel = document.getElementById("ticketIdShort");
+const caseTypeCard = document.getElementById("caseTypeCard");
+const caseTypeIcon = document.getElementById("caseTypeIcon");
+const caseTypeTitle = document.getElementById("caseTypeTitle");
 const caseProgressIcon = document.getElementById("caseProgressIcon");
 const caseProgressTitle = document.getElementById("caseProgressTitle");
 const caseProgressDetail = document.getElementById("caseProgressDetail");
@@ -113,7 +116,7 @@ if (neighborProfile?.id && !userId) {
 let currentEventId = localStorage.getItem("event_id");
 let currentTicketId = localStorage.getItem("ticket_id");
 let followupMinimized = localStorage.getItem("followup_minimized") === "true";
-let selectedAlertType = "SOS_MANUAL";
+let selectedAlertType = localStorage.getItem("current_alert_type") || "SOS_MANUAL";
 let mediaRecorder = null;
 let audioChunks = [];
 let audioStream = null;
@@ -168,6 +171,54 @@ const alertDefinitions = {
     priority: 3
   }
 };
+
+
+function normalizeAlertType(type) {
+  const raw = String(type || "SOS_MANUAL").toUpperCase();
+  if (raw.includes("VIF")) return raw.includes("SILENT") ? "VIF_SILENT_SHAKE" : "VIF";
+  if (raw.includes("FIRE") || raw.includes("INCEND")) return "FIRE";
+  if (raw.includes("MED")) return "MEDICAL";
+  if (raw.includes("SEC") || raw.includes("SEG")) return "SECURITY";
+  if (raw.includes("FALL") || raw.includes("CAID")) return "FALL_DETECTED";
+  if (raw.includes("ACCIDENT")) return "TRAFFIC_ACCIDENT";
+  if (raw.includes("RISK") || raw.includes("RIESGO")) return "URBAN_RISK";
+  if (raw.includes("OTHER") || raw.includes("OTRO")) return "OTHER";
+  return raw in alertDefinitions ? raw : "SOS_MANUAL";
+}
+
+function alertTypeIcon(type) {
+  const key = normalizeAlertType(type);
+  return ({
+    SOS_MANUAL: "🆘",
+    MEDICAL: "🩺",
+    FIRE: "🔥",
+    SECURITY: "🛡️",
+    VIF: "🤫",
+    VIF_SILENT_SHAKE: "🤫",
+    FALL_DETECTED: "⚕️",
+    TRAFFIC_ACCIDENT: "🚧",
+    URBAN_RISK: "⚠️",
+    OTHER: "❓"
+  })[key] || "🆘";
+}
+
+function alertTypeLabel(type) {
+  const key = normalizeAlertType(type);
+  return alertDefinitions[key]?.title || "SOS General";
+}
+
+function setCurrentAlertType(type) {
+  selectedAlertType = normalizeAlertType(type);
+  localStorage.setItem("current_alert_type", selectedAlertType);
+  updateCaseTypeCard(selectedAlertType);
+}
+
+function updateCaseTypeCard(type = selectedAlertType) {
+  const key = normalizeAlertType(type);
+  if (caseTypeIcon) caseTypeIcon.textContent = alertTypeIcon(key);
+  if (caseTypeTitle) caseTypeTitle.textContent = alertTypeLabel(key);
+  if (caseTypeCard) caseTypeCard.className = `case-type-card case-type-${key.toLowerCase().replace(/_/g, "-")}`;
+}
 
 function normalizePhone(phone) {
   return String(phone || "").trim().replace(/\s+/g, "");
@@ -691,6 +742,9 @@ function clearCurrentCaseLocal() {
   setFollowupMinimized(false);
   localStorage.removeItem("event_id");
   localStorage.removeItem("ticket_id");
+  localStorage.removeItem("current_alert_type");
+  selectedAlertType = "SOS_MANUAL";
+  updateCaseTypeCard(selectedAlertType);
   eventIdLabel.textContent = "-";
   eventStatus.textContent = "NORMAL";
   updateTicketLabels();
@@ -720,6 +774,7 @@ function renderCaseProgress(progress) {
   if (!caseProgressTitle || !progress) return;
 
   const state = progress.ticket_state || "ACTIVE";
+  if (progress.alert_type || progress.emergency_type) setCurrentAlertType(progress.alert_type || progress.emergency_type);
   caseProgressIcon.textContent = stateToProgressIcon(state);
   caseProgressTitle.textContent = progress.headline || "Central informada";
   caseProgressDetail.textContent = progress.detail || "La central ya recibió tu emergencia.";
@@ -895,6 +950,7 @@ async function recoverActiveCase() {
     }
 
     eventIdLabel.textContent = currentEventId;
+    if (data.event.alert_type || data.event.emergency_type) setCurrentAlertType(data.event.alert_type || data.event.emergency_type);
     eventStatus.textContent = data.effective_state || data.event.effective_state || data.event.state || "ACTIVO";
     updateTicketLabels();
 
@@ -956,6 +1012,7 @@ async function showCategories() {
 }
 
 function showActiveAlert() {
+  updateCaseTypeCard(selectedAlertType);
   setFollowupMinimized(false);
   authPanel.hidden = true;
   profilePanel.hidden = true;
@@ -1069,6 +1126,7 @@ async function sendSOS() {
     currentTicketId = data.ticket_id || null;
 
     localStorage.setItem("event_id", currentEventId);
+    setCurrentAlertType(selectedAlertType);
     setFollowupMinimized(false);
     if (currentTicketId) {
       localStorage.setItem("ticket_id", currentTicketId);
@@ -1533,6 +1591,8 @@ async function refreshStatus() {
     const state = terminalStates.includes(ticketState)
       ? ticketState
       : (event.effective_state || data?.effective_state || event.state || "DESCONOCIDO");
+
+    if (event.alert_type || event.emergency_type) setCurrentAlertType(event.alert_type || event.emergency_type);
 
     if (event.ticket_id && !currentTicketId) {
       currentTicketId = event.ticket_id;
