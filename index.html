@@ -135,6 +135,7 @@
         <div class="profile-actions">
           <button id="editProfileButton" type="button">Editar perfil</button>
           <button id="logoutButton" type="button">Salir</button>
+          <button id="appSettingsButton" class="settings-indicator" type="button" aria-label="Abrir configuración">⚙️ Configuración</button>
           <button id="sensorSettingsButton" class="sensor-indicator" type="button" aria-label="Configurar seguridad automática">
             <span class="sensor-dot" aria-hidden="true"></span>
             <span id="sensorIndicatorText">Seguridad automática</span>
@@ -178,6 +179,58 @@
         <p class="sensor-limit-note">
           Importante: iOS no permite garantizar detección si la app está cerrada o el teléfono está bloqueado. Para protección permanente, usa botón físico SOS como respaldo.
         </p>
+      </div>
+    </section>
+
+
+
+    <section id="appSettingsPanel" class="sensor-settings-panel" hidden>
+      <div class="sensor-settings-card app-settings-card">
+        <div class="sensor-settings-header">
+          <div>
+            <div class="eyebrow">Configuración</div>
+            <h2>Preferencias de la app</h2>
+          </div>
+          <button id="closeAppSettingsButton" class="icon-button" type="button" aria-label="Cerrar configuración">×</button>
+        </div>
+
+        <div class="app-settings-grid">
+          <div class="app-settings-section">
+            <h3>Seguridad automática</h3>
+            <p>Configura alerta silenciosa VIF por agitación y detección de caída.</p>
+            <button id="openSensorSettingsFromAppButton" class="secondary-action compact" type="button">Abrir seguridad automática</button>
+          </div>
+
+          <div class="app-settings-section">
+            <h3>Notificaciones</h3>
+            <label class="setting-row"><input id="neighborNotifySound" type="checkbox"> Sonido en cambios del caso</label>
+            <label class="setting-row"><input id="neighborNotifyVibrate" type="checkbox"> Vibración en cambios del caso</label>
+          </div>
+
+          <div class="app-settings-section">
+            <h3>Permisos</h3>
+            <p>Ubicación, cámara y micrófono se solicitan cuando son necesarios para una emergencia.</p>
+            <button id="neighborCheckPermissionsButton" class="secondary-action compact" type="button">Revisar permisos</button>
+          </div>
+
+          <div class="app-settings-section">
+            <h3>Privacidad</h3>
+            <p>Durante una alerta se envía ubicación, tipo de emergencia y evidencia que decidas aportar.</p>
+            <label class="setting-row"><input id="neighborPrivacyAck" type="checkbox"> Entiendo qué datos se envían</label>
+          </div>
+
+          <div class="app-settings-section">
+            <h3>Cuenta</h3>
+            <p><strong>Vecino:</strong> <span id="settingsNeighborName">—</span></p>
+            <p><strong>Teléfono:</strong> <span id="settingsNeighborPhone">—</span></p>
+            <p><strong>Centro:</strong> <span id="settingsNeighborCenter">—</span></p>
+          </div>
+
+          <div class="app-settings-section">
+            <h3>Ayuda</h3>
+            <p>Usa SOS solo ante emergencias reales. Si fue falsa alarma, cancela desde el seguimiento del caso.</p>
+          </div>
+        </div>
       </div>
     </section>
 

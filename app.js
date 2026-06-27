@@ -1819,6 +1819,56 @@ audioButton.addEventListener("click", toggleAudioRecording);
 stopAudioButton.addEventListener("click", toggleAudioRecording);
 acceptCallButton?.addEventListener("click", () => respondIncomingCall("ACCEPTED"));
 rejectCallButton?.addEventListener("click", () => respondIncomingCall("REJECTED"));
+
+
+function getNeighborSetting(key, fallback) {
+  const value = localStorage.getItem(key);
+  if (value == null) return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return value;
+}
+
+function setNeighborSetting(key, value) {
+  localStorage.setItem(key, String(value));
+}
+
+function openAppSettings() {
+  const panel = document.getElementById("appSettingsPanel");
+  if (!panel) return;
+  const profile = neighborProfile;
+  document.getElementById("settingsNeighborName").textContent = profile?.name || profile?.full_name || "—";
+  document.getElementById("settingsNeighborPhone").textContent = profile?.phone || "—";
+  document.getElementById("settingsNeighborCenter").textContent = profile?.control_center_code || "CC-VINA";
+  document.getElementById("neighborNotifySound").checked = !!getNeighborSetting("neighbor_notify_sound", true);
+  document.getElementById("neighborNotifyVibrate").checked = !!getNeighborSetting("neighbor_notify_vibrate", true);
+  document.getElementById("neighborPrivacyAck").checked = !!getNeighborSetting("neighbor_privacy_ack", false);
+  panel.hidden = false;
+}
+
+function closeAppSettings() {
+  const panel = document.getElementById("appSettingsPanel");
+  if (panel) panel.hidden = true;
+}
+
+function saveAppSettings() {
+  setNeighborSetting("neighbor_notify_sound", document.getElementById("neighborNotifySound")?.checked ?? true);
+  setNeighborSetting("neighbor_notify_vibrate", document.getElementById("neighborNotifyVibrate")?.checked ?? true);
+  setNeighborSetting("neighbor_privacy_ack", document.getElementById("neighborPrivacyAck")?.checked ?? false);
+}
+
+const appSettingsButton = document.getElementById("appSettingsButton");
+const appSettingsPanel = document.getElementById("appSettingsPanel");
+const closeAppSettingsButton = document.getElementById("closeAppSettingsButton");
+const openSensorSettingsFromAppButton = document.getElementById("openSensorSettingsFromAppButton");
+
+appSettingsButton?.addEventListener("click", openAppSettings);
+closeAppSettingsButton?.addEventListener("click", closeAppSettings);
+appSettingsPanel?.addEventListener("click", (event) => { if (event.target === appSettingsPanel) closeAppSettings(); });
+["neighborNotifySound", "neighborNotifyVibrate", "neighborPrivacyAck"].forEach((id) => document.getElementById(id)?.addEventListener("change", saveAppSettings));
+openSensorSettingsFromAppButton?.addEventListener("click", () => { closeAppSettings(); openSensorSettings(); });
+document.getElementById("neighborCheckPermissionsButton")?.addEventListener("click", () => alert("Revisa ubicación, cámara, micrófono y notificaciones en Ajustes del teléfono. La app los pedirá cuando sean necesarios."));
+
 sensorSettingsButton?.addEventListener("click", openSensorSettings);
 closeSensorSettingsButton?.addEventListener("click", closeSensorSettings);
 sensorSettingsPanel?.addEventListener("click", (event) => {

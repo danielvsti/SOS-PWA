@@ -1151,3 +1151,14 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
   opacity: 0.78;
   cursor: not-allowed;
 }
+
+
+/* v26.4 - configuración general vecino */
+.settings-indicator { border:1px solid #d8e1ee; background:#eef4ff; color:#0f172a; border-radius:999px; padding:10px 14px; font-weight:900; }
+.app-settings-card { max-width: 760px; }
+.app-settings-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:14px; margin-top:14px; }
+.app-settings-section { border:1px solid #dbe3ef; background:#f8fafc; border-radius:20px; padding:14px; }
+.app-settings-section h3 { margin:0 0 8px; color:#111827; }
+.app-settings-section p { margin:8px 0; color:#556070; }
+.setting-row { display:flex; align-items:center; gap:10px; margin:9px 0; font-weight:800; color:#334155; }
+@media (max-width: 720px) { .app-settings-grid { grid-template-columns:1fr; } .settings-indicator { width:100%; } }
