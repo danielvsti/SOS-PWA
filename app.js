@@ -92,8 +92,14 @@ const caseProgressSteps = document.getElementById("caseProgressSteps");
 const resolverContactCard = document.getElementById("resolverContactCard");
 const resolverContactName = document.getElementById("resolverContactName");
 const resolverContactText = document.getElementById("resolverContactText");
+const resolverSecureCallButton = document.getElementById("resolverSecureCallButton");
 const sensorToggleButton = document.getElementById("sensorToggleButton");
 const sensorStatus = document.getElementById("sensorStatus");
+const sensorSettingsButton = document.getElementById("sensorSettingsButton");
+const sensorIndicatorText = document.getElementById("sensorIndicatorText");
+const sensorSettingsPanel = document.getElementById("sensorSettingsPanel");
+const closeSensorSettingsButton = document.getElementById("closeSensorSettingsButton");
+const sensorTestButton = document.getElementById("sensorTestButton");
 const fallConfirmPanel = document.getElementById("fallConfirmPanel");
 const fallCountdown = document.getElementById("fallCountdown");
 const fallOkButton = document.getElementById("fallOkButton");
@@ -719,13 +725,25 @@ function renderCaseProgress(progress) {
   caseProgressDetail.textContent = progress.detail || "La central ya recibió tu emergencia.";
 
   if (progress.resolver) {
-    resolverContactName.textContent = progress.resolver.name || "Resolutor municipal";
-    resolverContactText.textContent = progress.resolver.phone
-      ? `Podría contactarte al ${progress.resolver.phone}.`
-      : "Asignado a tu caso. Mantén tu teléfono disponible.";
+    const resolverName = progress.resolver.name || "Resolutor municipal";
+    resolverContactName.textContent = resolverName;
+
+    // v26.3: no mostramos el teléfono celular como canal principal.
+    // La comunicación futura será in-app vía WA-CENTER/Asterisk WebRTC, asociada al ticket.
+    resolverContactText.textContent =
+      `${resolverName} está coordinando tu atención. La central gestionará cualquier comunicación segura si es necesario.`;
+
+    if (resolverSecureCallButton) {
+      resolverSecureCallButton.hidden = false;
+      resolverSecureCallButton.disabled = true;
+      resolverSecureCallButton.textContent = "Llamada segura próximamente";
+      resolverSecureCallButton.title = "Próxima integración WA-CENTER / WebRTC asociada al ticket";
+    }
+
     resolverContactCard.hidden = false;
   } else {
     resolverContactCard.hidden = true;
+    if (resolverSecureCallButton) resolverSecureCallButton.hidden = true;
   }
 
   const steps = Array.isArray(progress.steps) ? progress.steps : [];
@@ -812,7 +830,7 @@ function stopRecordingUI() {
 }
 
 function showIncomingCall(request) {
-  // v26: llamadas/videollamadas temporalmente deshabilitadas hasta integración WA-CENTER/WebRTC.
+  // v26.3: llamadas internas futuras vía WA-CENTER/Asterisk WebRTC, no por teléfono celular del resolutor.
   return;
 }
 
@@ -957,19 +975,33 @@ function setSendingState(isSending) {
   cancelButton.disabled = isSending;
 }
 
-function getCurrentPosition() {
+function getCurrentPositionOnce(options) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("GPS no disponible en este dispositivo"));
       return;
     }
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
 
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
+async function getCurrentPosition() {
+  try {
+    return await getCurrentPositionOnce({
       enableHighAccuracy: true,
       timeout: 10000,
       maximumAge: 0
     });
-  });
+  } catch (firstError) {
+    console.warn("GPS alta precisión falló, probando modo normal", firstError);
+    gpsStatus.textContent = "Reintentando...";
+    statusLabel.textContent = "Reintentando ubicación...";
+    return await getCurrentPositionOnce({
+      enableHighAccuracy: false,
+      timeout: 8000,
+      maximumAge: 30000
+    });
+  }
 }
 
 function requireTicket() {
@@ -1175,6 +1207,8 @@ let sensorUsingNativeMotion = false;
 let shakeTimestamps = [];
 let lastShakeAt = 0;
 let lastVifTriggerAt = 0;
+let sensorTestModeUntil = 0;
+let sensorAutoStartWanted = localStorage.getItem("sos_sensors_wanted") === "true";
 let fallCandidateAt = 0;
 let fallConfirmTimer = null;
 let fallConfirmInterval = null;
@@ -1194,10 +1228,26 @@ const SENSOR_CFG = {
 };
 
 function setSensorStatus(text, mode = "") {
-  if (!sensorStatus) return;
-  sensorStatus.textContent = text;
-  sensorStatus.classList.remove("active", "warning", "danger");
-  if (mode) sensorStatus.classList.add(mode);
+  if (sensorStatus) {
+    sensorStatus.textContent = text;
+    sensorStatus.classList.remove("active", "warning", "danger");
+    if (mode) sensorStatus.classList.add(mode);
+  }
+
+  if (sensorSettingsButton) {
+    sensorSettingsButton.classList.remove("active", "warning", "danger");
+    if (mode) sensorSettingsButton.classList.add(mode);
+  }
+
+  if (sensorIndicatorText) {
+    if (sensorsEnabled) {
+      sensorIndicatorText.textContent = mode === "warning" ? "Seguridad: detectando" : "Seguridad automática activa";
+    } else if (sensorAutoStartWanted) {
+      sensorIndicatorText.textContent = "Seguridad automática";
+    } else {
+      sensorIndicatorText.textContent = "Seguridad automática";
+    }
+  }
 }
 
 function motionMagnitude(eventOrData) {
@@ -1206,6 +1256,25 @@ function motionMagnitude(eventOrData) {
   const y = Number(src.y || 0);
   const z = Number(src.z || 0);
   return Math.sqrt(x * x + y * y + z * z);
+}
+
+function openSensorSettings() {
+  if (sensorSettingsPanel) sensorSettingsPanel.hidden = false;
+}
+
+function closeSensorSettings() {
+  if (sensorSettingsPanel) sensorSettingsPanel.hidden = true;
+}
+
+function startSensorTestMode() {
+  if (!sensorsEnabled) {
+    setSensorStatus("Primero activa seguridad automática. Luego podrás probar 3 agitaciones cortas.", "warning");
+    openSensorSettings();
+    return;
+  }
+  sensorTestModeUntil = Date.now() + 15000;
+  shakeTimestamps = [];
+  setSensorStatus("Modo prueba: agita 3 veces cortas en 15 segundos. No se enviará SOS real.", "warning");
 }
 
 function handleMotionSample(eventOrData) {
@@ -1221,13 +1290,23 @@ function handleMotionSample(eventOrData) {
     shakeTimestamps = shakeTimestamps.filter(ts => now - ts <= SENSOR_CFG.shakeWindowMs);
     setSensorStatus(`Movimiento fuerte detectado (${shakeTimestamps.length}/3)`, "warning");
 
-    if (shakeTimestamps.length >= SENSOR_CFG.shakeCount && (now - lastVifTriggerAt) > SENSOR_CFG.vifCooldownMs) {
-      lastVifTriggerAt = now;
-      shakeTimestamps = [];
-      blurEditableControls();
-      navigator.vibrate?.([80, 80, 80]);
-      sendSilentVifFromShake();
-      return;
+    if (shakeTimestamps.length >= SENSOR_CFG.shakeCount) {
+      if (sensorTestModeUntil && now <= sensorTestModeUntil) {
+        shakeTimestamps = [];
+        sensorTestModeUntil = 0;
+        navigator.vibrate?.([80, 80, 80]);
+        setSensorStatus("Prueba exitosa: gesto VIF detectado. No se envió alerta real.", "active");
+        return;
+      }
+
+      if ((now - lastVifTriggerAt) > SENSOR_CFG.vifCooldownMs) {
+        lastVifTriggerAt = now;
+        shakeTimestamps = [];
+        blurEditableControls();
+        navigator.vibrate?.([80, 80, 80]);
+        sendSilentVifFromShake();
+        return;
+      }
     }
   }
 
@@ -1270,16 +1349,20 @@ async function startSensors() {
     }
 
     sensorsEnabled = true;
-    sensorToggleButton.textContent = "Desactivar sensores";
-    setSensorStatus("Activos · 3 agitaciones = VIF silenciosa · caída fuerte = confirmación", "active");
+    sensorAutoStartWanted = true;
+    localStorage.setItem("sos_sensors_wanted", "true");
+    if (sensorToggleButton) sensorToggleButton.textContent = "Desactivar seguridad automática";
+    setSensorStatus("Activo · 3 agitaciones = VIF silenciosa · caída fuerte = confirmación", "active");
   } catch (error) {
     console.error(error);
-    setSensorStatus("No se pudo activar sensores: " + error.message, "danger");
+    setSensorStatus("No se pudo activar seguridad automática: " + error.message, "danger");
   }
 }
 
 async function stopSensors() {
   sensorsEnabled = false;
+  sensorAutoStartWanted = false;
+  localStorage.setItem("sos_sensors_wanted", "false");
   window.removeEventListener("devicemotion", handleMotionSample);
 
   try {
@@ -1296,9 +1379,9 @@ async function stopSensors() {
   lastShakeAt = 0;
   fallCandidateAt = 0;
   hideFallConfirmation();
-  if (sensorToggleButton) sensorToggleButton.textContent = "Activar sensores";
+  if (sensorToggleButton) sensorToggleButton.textContent = "Activar seguridad automática";
   exitSensorGestureMode();
-  setSensorStatus("Desactivados · 3 agitaciones = alerta VIF silenciosa · caída fuerte = confirmación médica/accidente.");
+  setSensorStatus("Seguridad automática desactivada. Puedes reactivarla desde configuración.");
 }
 
 function toggleSensors() {
@@ -1306,6 +1389,20 @@ function toggleSensors() {
     stopSensors();
   } else {
     startSensors();
+  }
+}
+
+async function tryAutoStartSensors() {
+  if (!sensorAutoStartWanted || sensorsEnabled || !isNeighborRegistered()) {
+    setSensorStatus(sensorAutoStartWanted ? "Toca para activar seguridad automática." : "Pendiente de activar. Funciona mientras la app está abierta o activa.");
+    return;
+  }
+
+  try {
+    await startSensors();
+  } catch (error) {
+    console.warn("Autoactivación de sensores no disponible", error);
+    setSensorStatus("Toca configuración para activar seguridad automática.", "warning");
   }
 }
 
@@ -1675,7 +1772,7 @@ async function uploadSelectedVideo() {
 }
 
 async function requestCall(mode) {
-  statusLabel.textContent = "Llamadas y videollamadas estarán disponibles en una próxima versión";
+  statusLabel.textContent = "Llamadas seguras vía WA-CENTER/WebRTC estarán disponibles en una próxima versión";
   alert("Función temporalmente deshabilitada. Por ahora puedes enviar texto, audio o evidencia en video.");
 }
 
@@ -1722,7 +1819,13 @@ audioButton.addEventListener("click", toggleAudioRecording);
 stopAudioButton.addEventListener("click", toggleAudioRecording);
 acceptCallButton?.addEventListener("click", () => respondIncomingCall("ACCEPTED"));
 rejectCallButton?.addEventListener("click", () => respondIncomingCall("REJECTED"));
+sensorSettingsButton?.addEventListener("click", openSensorSettings);
+closeSensorSettingsButton?.addEventListener("click", closeSensorSettings);
+sensorSettingsPanel?.addEventListener("click", (event) => {
+  if (event.target === sensorSettingsPanel) closeSensorSettings();
+});
 sensorToggleButton?.addEventListener("click", toggleSensors);
+sensorTestButton?.addEventListener("click", startSensorTestMode);
 fallOkButton?.addEventListener("click", cancelFallDetection);
 fallHelpButton?.addEventListener("click", sendFallDetectedSOS);
 videoUploadButton.addEventListener("click", () => videoInput.click());
@@ -1791,6 +1894,8 @@ async function initializeApp() {
   } else {
     showAuth();
   }
+
+  setTimeout(tryAutoStartSensors, 700);
 }
 
 initializeApp();

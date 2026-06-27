@@ -33,9 +33,17 @@ body {
 }
 
 h1 {
-  margin: 0 0 14px;
+  margin: 0 0 6px;
   font-size: 28px;
   line-height: 1.15;
+}
+
+.product-subtitle {
+  margin: 0 auto 14px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 h2 {
@@ -649,6 +657,10 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
   background: #2563eb;
 }
 
+.profile-actions .sensor-indicator {
+  grid-column: 1 / -1;
+}
+
 .case-progress-card {
   margin: 18px 0 24px;
   background: #ffffff;
@@ -871,7 +883,7 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
 }
 
 
-/* v26 - sensores móviles / retiro temporal llamadas */
+/* v26.2 - sensores discretos, banner fijo, retiro temporal llamadas */
 .sensor-card,
 .fall-confirm-card {
   margin: 18px auto;
@@ -961,4 +973,181 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
 
 .communication-grid .wide {
   grid-column: 1 / -1;
+}
+
+
+/* v26.3 - seguridad automática en configuración, no en pantalla principal */
+.sensor-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.sensor-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #9ca3af;
+}
+
+.sensor-indicator.active {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: rgba(34, 197, 94, .25);
+}
+
+.sensor-indicator.warning {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: rgba(245, 158, 11, .28);
+}
+
+.sensor-indicator.danger {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: rgba(220, 38, 38, .25);
+}
+
+.sensor-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #94a3b8;
+  box-shadow: 0 0 0 4px rgba(148, 163, 184, .18);
+}
+
+.sensor-indicator.active .sensor-dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, .18);
+}
+
+.sensor-indicator.warning .sensor-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, .18);
+}
+
+.sensor-indicator.danger .sensor-dot {
+  background: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, .18);
+}
+
+.sensor-settings-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  background: rgba(15, 23, 42, .52);
+  display: grid;
+  place-items: end center;
+  padding: 18px;
+}
+
+.sensor-settings-panel[hidden] {
+  display: none !important;
+}
+
+.sensor-settings-card {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 20px;
+  box-shadow: 0 28px 80px rgba(2, 6, 23, .35);
+  text-align: left;
+}
+
+.sensor-settings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sensor-settings-header h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.eyebrow {
+  color: #64748b;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.icon-button {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 16px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.sensor-settings-lead,
+.sensor-limit-note {
+  color: #475569;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.sensor-training-box {
+  margin-top: 14px;
+  border: 1px solid rgba(37, 99, 235, .16);
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.sensor-training-box p {
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+
+.sensor-limit-note {
+  border-top: 1px solid rgba(15, 23, 42, .08);
+  padding-top: 12px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+/* Oculta la tarjeta antigua si quedó en caché o en alguna plantilla anterior */
+#sensorCard {
+  display: none !important;
+}
+
+.resolver-call-button {
+  margin-top: 10px;
+  width: 100%;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 10px 12px;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.resolver-call-button:disabled {
+  opacity: 0.78;
+  cursor: not-allowed;
 }

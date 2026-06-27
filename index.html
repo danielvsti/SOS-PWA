@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sistema SOS Municipal</title>
-  <meta name="app-version" content="v26-mobile-sensors">
+  <title>Alerta Comunal</title>
+  <meta name="app-version" content="v26.3-alerta-comunal-webrtc-ready">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
   <meta name="theme-color" content="#dc2626">
@@ -29,8 +29,9 @@
   </div>
 
   <main class="container">
-    <img src="logo.png" class="logo" alt="VS&TI">
-    <h1>Sistema SOS Municipal</h1>
+    <img src="logo.svg" class="logo" alt="Alerta Comunal por VS&TI">
+    <h1>Alerta Comunal</h1>
+    <p class="product-subtitle">Sistema SOS Municipal por VS&TI</p>
 
     <div id="status" class="status-pill">Lista para usar</div>
 
@@ -134,10 +135,51 @@
         <div class="profile-actions">
           <button id="editProfileButton" type="button">Editar perfil</button>
           <button id="logoutButton" type="button">Salir</button>
+          <button id="sensorSettingsButton" class="sensor-indicator" type="button" aria-label="Configurar seguridad automática">
+            <span class="sensor-dot" aria-hidden="true"></span>
+            <span id="sensorIndicatorText">Seguridad automática</span>
+          </button>
         </div>
       </div>
     </section>
 
+    <section id="sensorSettingsPanel" class="sensor-settings-panel" hidden>
+      <div class="sensor-settings-card">
+        <div class="sensor-settings-header">
+          <div>
+            <div class="eyebrow">Configuración</div>
+            <h2>Seguridad automática</h2>
+          </div>
+          <button id="closeSensorSettingsButton" class="icon-button" type="button" aria-label="Cerrar configuración">×</button>
+        </div>
+
+        <p class="sensor-settings-lead">
+          Activa funciones automáticas de apoyo. La alerta silenciosa VIF por agitación y la detección de caída funcionan mientras la app está abierta o activa.
+        </p>
+
+        <div class="sensor-actions">
+          <button id="sensorToggleButton" class="primary-action compact" type="button">
+            Activar seguridad automática
+          </button>
+          <button id="sensorTestButton" class="secondary-action compact" type="button">
+            Probar gesto VIF
+          </button>
+        </div>
+
+        <div id="sensorStatus" class="sensor-status">
+          Pendiente de activar. Puedes activar estas funciones desde esta configuración.
+        </div>
+
+        <div class="sensor-training-box">
+          <strong>Gesto discreto para VIF</strong>
+          <p>Con la app activa, toma el celular firme y haz tres sacudidas cortas con la muñeca: tac — tac — tac, dentro de unos 5 segundos.</p>
+        </div>
+
+        <p class="sensor-limit-note">
+          Importante: iOS no permite garantizar detección si la app está cerrada o el teléfono está bloqueado. Para protección permanente, usa botón físico SOS como respaldo.
+        </p>
+      </div>
+    </section>
 
     <section id="homePanel" class="home-panel">
       <button id="sosButton" type="button" aria-label="Activar SOS">
@@ -146,24 +188,6 @@
       <p class="helper-text">
         Presiona el botón en caso de emergencia.
       </p>
-
-      <div id="sensorCard" class="sensor-card">
-        <div class="sensor-head">
-          <span>📱</span>
-          <div>
-            <strong>Sensores de emergencia</strong>
-            <p>Activa detección por movimiento mientras la app esté abierta.</p>
-          </div>
-        </div>
-        <div class="sensor-actions">
-          <button id="sensorToggleButton" class="secondary-action compact" type="button">
-            Activar sensores
-          </button>
-        </div>
-        <div id="sensorStatus" class="sensor-status">
-          Desactivados · 3 agitaciones = alerta VIF silenciosa · caída fuerte = confirmación médica/accidente.
-        </div>
-      </div>
 
       <div id="fallConfirmPanel" class="fall-confirm-card" hidden>
         <div class="fall-icon">⚠️</div>
@@ -253,7 +277,7 @@
     <section id="activePanel" class="active-panel" hidden>
       <h2>Alerta enviada</h2>
       <p class="helper-text">
-        La central ya recibió tu emergencia. Por ahora puedes enviar texto, audio o evidencia en video.
+        La central ya recibió tu emergencia. Puedes enviar texto, audio o evidencia en video.
       </p>
 
       <div class="case-card">
@@ -274,6 +298,9 @@
           <div>
             <strong id="resolverContactName">Resolutor municipal</strong>
             <p id="resolverContactText">Asignado a tu caso.</p>
+            <button id="resolverSecureCallButton" class="resolver-call-button" type="button" disabled hidden>
+              Llamada segura próximamente
+            </button>
           </div>
         </div>
         <div id="caseProgressSteps" class="case-progress-steps"></div>
