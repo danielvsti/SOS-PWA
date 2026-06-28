@@ -412,15 +412,10 @@ function resetOtpDemo() {
   otpDemoCode.textContent = "";
 }
 
-function showOtpDemoCode(code) {
-  if (!otpDemoCode) return;
-
-  if (code) {
-    otpDemoCode.hidden = false;
-    otpDemoCode.textContent = `Código demo: ${code}`;
-  } else {
-    resetOtpDemo();
-  }
+function showOtpDemoCode(_code) {
+  // Los códigos OTP no se muestran en la App Vecino.
+  // En laboratorio se revisan en logs del backend con OTP_LOG_CODES=true.
+  resetOtpDemo();
 }
 
 function showLogin() {
@@ -453,7 +448,7 @@ function showRegister() {
   fillRegisterFormFromProfile();
 }
 
-function showOtp({ phone, purpose = "LOGIN", mode = "login", demoCode = null } = {}) {
+function showOtp({ phone, purpose = "LOGIN", mode = "login" } = {}) {
   pendingOtpPhone = normalizePhone(phone || pendingOtpPhone);
   pendingOtpPurpose = purpose || pendingOtpPurpose || "LOGIN";
   pendingOtpMode = mode || pendingOtpMode || "login";
@@ -473,7 +468,7 @@ function showOtp({ phone, purpose = "LOGIN", mode = "login", demoCode = null } =
   cancelButton.hidden = true;
   otpCode.value = "";
   otpHelpText.textContent = `Ingresa el código enviado a ${pendingOtpPhone}.`;
-  showOtpDemoCode(demoCode);
+  showOtpDemoCode();
   statusLabel.textContent = "Código enviado";
   setTimeout(() => otpCode.focus(), 100);
 }
@@ -512,8 +507,7 @@ async function requestLoginCode() {
     showOtp({
       phone,
       purpose: "LOGIN",
-      mode: "login",
-      demoCode: data.demo_code || null
+      mode: "login"
     });
   } catch (error) {
     console.error(error);
@@ -547,8 +541,7 @@ async function registerNeighbor() {
       declared_address: declaredAddress,
       latitude: homeLatitude ? Number(homeLatitude) : null,
       longitude: homeLongitude ? Number(homeLongitude) : null,
-      emergency_contacts: buildEmergencyContacts(),
-      otp_channel: "demo"
+      emergency_contacts: buildEmergencyContacts()
     };
 
     const res = await fetch(`${API}/auth/register`, {
@@ -567,8 +560,7 @@ async function registerNeighbor() {
     showOtp({
       phone,
       purpose: "REGISTER",
-      mode: "register",
-      demoCode: data.demo_code || null
+      mode: "register"
     });
   } catch (error) {
     console.error(error);
@@ -665,8 +657,7 @@ async function resendOtpCode() {
     showOtp({
       phone,
       purpose: pendingOtpPurpose || "LOGIN",
-      mode: pendingOtpMode || "login",
-      demoCode: data.demo_code || null
+      mode: pendingOtpMode || "login"
     });
   } catch (error) {
     console.error(error);
