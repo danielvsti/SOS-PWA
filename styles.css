@@ -1203,3 +1203,186 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
 .case-type-medical > span, .case-type-fall-detected > span { background: #dcfce7; }
 .case-type-security > span { background: #ede9fe; }
 .case-type-urban-risk > span { background: #fef3c7; }
+
+/* v26.6 - App Vecino más limpia: configuración arriba y SOS protagonista */
+.neighbor-app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 14px;
+  padding: 10px 2px 0;
+  text-align: left;
+}
+
+.neighbor-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.neighbor-app-header .logo {
+  width: 58px;
+  height: 58px;
+  max-width: none;
+  margin: 0;
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .12);
+}
+
+.neighbor-app-header h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.05;
+}
+
+.neighbor-app-header .product-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.top-settings-button {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, .38);
+  border-radius: 20px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 900;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .16);
+  cursor: pointer;
+}
+
+.top-settings-button:active {
+  transform: scale(.97);
+}
+
+.status-pill {
+  margin-bottom: 14px;
+}
+
+/* El perfil completo vive en Configuración; la portada queda dedicada a emergencia. */
+.profile-panel {
+  display: none !important;
+}
+
+.home-panel {
+  margin-top: 2px;
+}
+
+#sosButton {
+  width: min(82vw, 330px);
+  height: min(82vw, 330px);
+  max-width: 330px;
+  max-height: 330px;
+  margin: 18px auto 18px;
+  font-size: 68px;
+  box-shadow: 0 22px 44px rgba(220, 38, 38, .36), 0 0 0 28px rgba(220, 38, 38, .10);
+}
+
+.category-panel h2 {
+  margin-top: 10px;
+  font-size: 26px;
+  line-height: 1.12;
+}
+
+.category-panel .helper-text {
+  max-width: 420px;
+  margin-bottom: 16px;
+  font-weight: 700;
+}
+
+.emergency-option {
+  min-height: 92px;
+  border-radius: 20px;
+  border-width: 2px;
+  font-size: 17px;
+}
+
+.emergency-option .emoji {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.emergency-option.active {
+  box-shadow: 0 12px 28px rgba(220, 38, 38, .18);
+}
+
+.category-confirm-button {
+  display: none !important;
+}
+
+.settings-account-card {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 24px;
+  background: #f8fafc;
+  border: 1px solid #dbe3ef;
+}
+
+.settings-account-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 26px;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.settings-account-card span {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.settings-account-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.settings-account-actions .primary-action,
+.settings-account-actions .secondary-action {
+  margin-top: 0;
+}
+
+.app-settings-section .secondary-action.compact {
+  width: 100%;
+}
+
+@media (max-width: 420px) {
+  .container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .neighbor-app-header h1 {
+    font-size: 23px;
+  }
+
+  .neighbor-app-header .product-subtitle {
+    font-size: 12px;
+  }
+
+  .top-settings-button,
+  .neighbor-app-header .logo {
+    width: 52px;
+    height: 52px;
+  }
+
+  #sosButton {
+    width: min(84vw, 310px);
+    height: min(84vw, 310px);
+    font-size: 62px;
+  }
+
+  .settings-account-actions {
+    grid-template-columns: 1fr;
+  }
+}

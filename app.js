@@ -968,7 +968,7 @@ function showHome(options = {}) {
 
   updateProfileCard();
   authPanel.hidden = true;
-  profilePanel.hidden = false;
+  profilePanel.hidden = true;
   homePanel.hidden = false;
   categoryPanel.hidden = true;
   activePanel.hidden = true;
@@ -1000,7 +1000,10 @@ async function showCategories() {
   homePanel.hidden = true;
   categoryPanel.hidden = false;
   activePanel.hidden = true;
-  statusLabel.textContent = "Selecciona el tipo de emergencia";
+  document
+    .querySelectorAll(".emergency-option")
+    .forEach(option => option.classList.remove("active"));
+  statusLabel.textContent = "Toca una categoría para enviar la alerta";
 }
 
 function showActiveAlert() {
@@ -1022,6 +1025,9 @@ function setSendingState(isSending) {
   confirmButton.disabled = isSending;
   backButton.disabled = isSending;
   cancelButton.disabled = isSending;
+  document
+    .querySelectorAll(".emergency-option")
+    .forEach(option => { option.disabled = isSending; });
 }
 
 function getCurrentPositionOnce(options) {
@@ -1842,16 +1848,20 @@ function resumeFollowup() {
 }
 
 document.querySelectorAll(".emergency-option").forEach(button => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
+    if (button.disabled || currentEventId) return;
+
     document
       .querySelectorAll(".emergency-option")
       .forEach(option => option.classList.remove("active"));
 
     button.classList.add("active");
-    selectedAlertType = button.dataset.type;
+    selectedAlertType = normalizeAlertType(button.dataset.type);
 
     statusLabel.textContent =
-      "Tipo seleccionado: " + alertDefinitions[selectedAlertType].title;
+      "Enviando " + alertDefinitions[selectedAlertType].title + "...";
+
+    await sendSOS();
   });
 });
 
@@ -1889,9 +1899,15 @@ function openAppSettings() {
   const panel = document.getElementById("appSettingsPanel");
   if (!panel) return;
   const profile = neighborProfile;
-  document.getElementById("settingsNeighborName").textContent = profile?.name || profile?.full_name || "—";
-  document.getElementById("settingsNeighborPhone").textContent = profile?.phone || "—";
-  document.getElementById("settingsNeighborCenter").textContent = profile?.control_center_code || "CC-VINA";
+  const accountName = profile?.name || profile?.full_name || "Vecino registrado";
+  const accountPhone = profile?.phone || "—";
+  const accountStatus = profile?.validation_status || profile?.status || "PROVISIONAL_ACTIVE";
+  const accountCenter = profile?.control_center_code || CONTROL_CENTER_CODE || "CC-VINA";
+  document.getElementById("settingsAccountName").textContent = accountName;
+  document.getElementById("settingsAccountMeta").textContent = `${accountPhone} · ${accountStatus}`;
+  document.getElementById("settingsNeighborName").textContent = accountName;
+  document.getElementById("settingsNeighborPhone").textContent = accountPhone;
+  document.getElementById("settingsNeighborCenter").textContent = accountCenter;
   document.getElementById("neighborNotifySound").checked = !!getNeighborSetting("neighbor_notify_sound", true);
   document.getElementById("neighborNotifyVibrate").checked = !!getNeighborSetting("neighbor_notify_vibrate", true);
   document.getElementById("neighborPrivacyAck").checked = !!getNeighborSetting("neighbor_privacy_ack", false);
@@ -1909,13 +1925,28 @@ function saveAppSettings() {
   setNeighborSetting("neighbor_privacy_ack", document.getElementById("neighborPrivacyAck")?.checked ?? false);
 }
 
+function logoutNeighbor() {
+  if (currentEventId) {
+    alert("No puedes salir del perfil mientras hay una alerta activa. Primero vuelve al inicio sin cancelar o cancela la alerta si fue falsa alarma.");
+    return;
+  }
+
+  clearNeighborProfile();
+  closeAppSettings();
+  showAuth();
+}
+
 const appSettingsButton = document.getElementById("appSettingsButton");
 const appSettingsPanel = document.getElementById("appSettingsPanel");
 const closeAppSettingsButton = document.getElementById("closeAppSettingsButton");
 const openSensorSettingsFromAppButton = document.getElementById("openSensorSettingsFromAppButton");
+const editProfileFromSettingsButton = document.getElementById("editProfileFromSettingsButton");
+const logoutFromSettingsButton = document.getElementById("logoutFromSettingsButton");
 
 appSettingsButton?.addEventListener("click", openAppSettings);
 closeAppSettingsButton?.addEventListener("click", closeAppSettings);
+editProfileFromSettingsButton?.addEventListener("click", () => { closeAppSettings(); showRegister(); });
+logoutFromSettingsButton?.addEventListener("click", logoutNeighbor);
 appSettingsPanel?.addEventListener("click", (event) => { if (event.target === appSettingsPanel) closeAppSettings(); });
 ["neighborNotifySound", "neighborNotifyVibrate", "neighborPrivacyAck"].forEach((id) => document.getElementById(id)?.addEventListener("change", saveAppSettings));
 openSensorSettingsFromAppButton?.addEventListener("click", () => { closeAppSettings(); openSensorSettings(); });
@@ -1944,16 +1975,8 @@ otpCode?.addEventListener("keyup", (event) => {
   if (event.key === "Enter") verifyOtpCode();
 });
 homeLocationButton.addEventListener("click", useHomeLocation);
-editProfileButton.addEventListener("click", showRegister);
-logoutButton.addEventListener("click", () => {
-  if (currentEventId) {
-    alert("No puedes salir del perfil mientras hay una alerta activa. Primero vuelve al inicio sin cancelar o cancela la alerta si fue falsa alarma.");
-    return;
-  }
-
-  clearNeighborProfile();
-  showAuth();
-});
+editProfileButton?.addEventListener("click", showRegister);
+logoutButton?.addEventListener("click", logoutNeighbor);
 
 setInterval(refreshStatus, 5000);
 setInterval(() => {

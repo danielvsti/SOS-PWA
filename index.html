@@ -29,9 +29,16 @@
   </div>
 
   <main class="container">
-    <img src="logo.svg" class="logo" alt="Alerta Comunal por VS&TI">
-    <h1>Alerta Comunal</h1>
-    <p class="product-subtitle">Sistema SOS Municipal por VS&TI</p>
+    <header class="neighbor-app-header">
+      <div class="neighbor-brand">
+        <img src="logo.svg" class="logo" alt="Alerta Comunal por VS&TI">
+        <div>
+          <h1>Alerta Comunal</h1>
+          <p class="product-subtitle">Sistema SOS Municipal por VS&TI</p>
+        </div>
+      </div>
+      <button id="appSettingsButton" class="top-settings-button" type="button" aria-label="Abrir configuración">⚙️</button>
+    </header>
 
     <div id="status" class="status-pill">Lista para usar</div>
 
@@ -133,7 +140,6 @@
         <div class="profile-actions">
           <button id="editProfileButton" type="button">Editar perfil</button>
           <button id="logoutButton" type="button">Salir</button>
-          <button id="appSettingsButton" class="settings-indicator" type="button" aria-label="Abrir configuración">⚙️ Configuración</button>
           <button id="sensorSettingsButton" class="sensor-indicator" type="button" aria-label="Configurar seguridad automática">
             <span class="sensor-dot" aria-hidden="true"></span>
             <span id="sensorIndicatorText">Seguridad automática</span>
@@ -187,9 +193,19 @@
         <div class="sensor-settings-header">
           <div>
             <div class="eyebrow">Configuración</div>
-            <h2>Preferencias de la app</h2>
+            <h2>Configuración del vecino</h2>
           </div>
           <button id="closeAppSettingsButton" class="icon-button" type="button" aria-label="Cerrar configuración">×</button>
+        </div>
+
+        <div class="settings-account-card">
+          <div class="eyebrow">Vecino registrado</div>
+          <strong id="settingsAccountName">—</strong>
+          <span id="settingsAccountMeta">—</span>
+          <div class="settings-account-actions">
+            <button id="editProfileFromSettingsButton" class="primary-action compact" type="button">Editar perfil</button>
+            <button id="logoutFromSettingsButton" class="secondary-action compact" type="button">Salir</button>
+          </div>
         </div>
 
         <div class="app-settings-grid">
@@ -271,11 +287,11 @@
     <section id="categoryPanel" class="category-panel" hidden>
       <h2>¿Qué tipo de emergencia quieres reportar?</h2>
       <p class="helper-text">
-        Selecciona una categoría y luego confirma el envío.
+        Toca una categoría para enviar la alerta de inmediato.
       </p>
 
       <div class="emergency-grid">
-        <button class="emergency-option active" type="button" data-type="SOS_MANUAL">
+        <button class="emergency-option" type="button" data-type="SOS_MANUAL">
           <span class="emoji">🚨</span>
           <span>SOS General</span>
         </button>
@@ -316,7 +332,7 @@
         </button>
       </div>
 
-      <button id="confirmButton" class="primary-action" type="button">
+      <button id="confirmButton" class="primary-action category-confirm-button" type="button" hidden>
         Enviar alerta
       </button>
 
