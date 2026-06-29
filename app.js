@@ -93,6 +93,8 @@ const caseProgressIcon = document.getElementById("caseProgressIcon");
 const caseProgressTitle = document.getElementById("caseProgressTitle");
 const caseProgressDetail = document.getElementById("caseProgressDetail");
 const caseProgressSteps = document.getElementById("caseProgressSteps");
+const caseActivityList = document.getElementById("caseActivityList");
+const caseActivityEmpty = document.getElementById("caseActivityEmpty");
 const resolverContactCard = document.getElementById("resolverContactCard");
 const resolverContactName = document.getElementById("resolverContactName");
 const resolverContactText = document.getElementById("resolverContactText");
@@ -813,7 +815,88 @@ function renderCaseProgress(progress) {
   }).join("");
 }
 
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function activityIcon(kind) {
+  switch (kind) {
+    case "text": return "💬";
+    case "audio": return "🎙️";
+    case "video": return "📹";
+    case "voice_call": return "☎️";
+    case "video_call": return "🎥";
+    case "call_response": return "📞";
+    default: return "✅";
+  }
+}
+
+function formatActivityTime(value) {
+  if (!value) return "ahora";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "ahora";
+  return date.toLocaleTimeString("es-CL", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function renderCaseActivity(items = []) {
+  if (!caseActivityList || !caseActivityEmpty) return;
+
+  const list = Array.isArray(items) ? items : [];
+  caseActivityEmpty.hidden = list.length > 0;
+
+  caseActivityList.innerHTML = list.map((item) => {
+    const kind = item.kind || "event";
+    const title = item.title || "Actualización enviada";
+    const body = item.body || "";
+    const mediaUrl = item.media_url || "";
+    const fileName = item.file_name || "";
+    const mediaLink = mediaUrl
+      ? `<a class="case-activity-link" href="${escapeHtml(mediaUrl)}" target="_blank" rel="noopener">Ver evidencia</a>`
+      : "";
+
+    return `
+      <div class="case-activity-item ${escapeHtml(kind)}">
+        <div class="case-activity-icon">${activityIcon(kind)}</div>
+        <div class="case-activity-body">
+          <div class="case-activity-title-row">
+            <strong>${escapeHtml(title)}</strong>
+            <span>${escapeHtml(formatActivityTime(item.created_at))}</span>
+          </div>
+          ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+          ${fileName ? `<p class="case-activity-file">${escapeHtml(fileName)}</p>` : ""}
+          ${mediaLink}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function prependCaseActivity(item) {
+  if (!caseActivityList || !caseActivityEmpty) return;
+
+  const current = caseActivityList.innerHTML;
+  renderCaseActivity([{
+    id: `local-${Date.now()}`,
+    created_at: new Date().toISOString(),
+    ...item
+  }]);
+
+  if (current) {
+    caseActivityList.insertAdjacentHTML("beforeend", current);
+  }
+}
+
 function resetCaseProgress() {
+  renderCaseActivity([]);
   renderCaseProgress({
     ticket_state: "ACTIVE",
     headline: "Central informada",
@@ -949,6 +1032,7 @@ async function recoverActiveCase() {
     if (data.neighbor_progress) {
       renderCaseProgress(data.neighbor_progress);
     }
+    renderCaseActivity(data.neighbor_activity || []);
 
     updateResumeFollowupCard(`Caso activo · ${eventStatus.textContent}`);
     return true;
@@ -1601,6 +1685,7 @@ async function refreshStatus() {
     if (data?.neighbor_progress) {
       renderCaseProgress(data.neighbor_progress);
     }
+    renderCaseActivity(data?.neighbor_activity || []);
 
     if (data?.pending_call_request && !terminalStates.includes(state)) {
       showIncomingCall(data.pending_call_request);
@@ -1671,9 +1756,15 @@ async function sendTextMessage() {
       throw new Error("Error HTTP " + res.status);
     }
 
+    prependCaseActivity({
+      kind: "text",
+      title: "Mensaje de texto enviado",
+      body: message
+    });
     textMessage.value = "";
     textPanel.hidden = true;
     statusLabel.textContent = "Mensaje enviado a la central";
+    refreshStatus();
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo enviar el mensaje";
@@ -1709,10 +1800,17 @@ async function uploadMedia(mediaType, blob, fileName) {
     throw new Error("Error HTTP " + res.status);
   }
 
-  await res.json();
+  const data = await res.json();
+  prependCaseActivity({
+    kind: mediaType,
+    title: mediaType === "audio" ? "Audio enviado" : "Video enviado",
+    media_url: data.media_url || null,
+    file_name: fileName
+  });
   statusLabel.textContent = mediaType === "audio"
     ? "Audio enviado a la central"
     : "Video enviado a la central";
+  refreshStatus();
 }
 
 function getPreferredAudioOptions() {
