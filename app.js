@@ -784,9 +784,9 @@ function renderCaseProgress(progress) {
 
     if (resolverSecureCallButton) {
       resolverSecureCallButton.hidden = false;
-      resolverSecureCallButton.disabled = true;
-      resolverSecureCallButton.textContent = "Llamada segura próximamente";
-      resolverSecureCallButton.title = "Próxima integración WA-CENTER / WebRTC asociada al ticket";
+      resolverSecureCallButton.disabled = false;
+      resolverSecureCallButton.textContent = "Solicitar llamada segura";
+      resolverSecureCallButton.title = "Solicita una llamada segura asociada a este caso";
     }
 
     resolverContactCard.hidden = false;
@@ -1927,9 +1927,44 @@ async function uploadSelectedVideo() {
   }
 }
 
-async function requestCall(mode) {
-  statusLabel.textContent = "Llamadas seguras vía WA-CENTER/WebRTC estarán disponibles en una próxima versión";
-  alert("Función temporalmente deshabilitada. Por ahora puedes enviar texto, audio o evidencia en video.");
+async function requestCall(mode = "voice") {
+  if (!currentEventId) {
+    statusLabel.textContent = "Primero debes tener un caso activo para solicitar llamada segura.";
+    return;
+  }
+
+  const buttons = [voiceButton, resolverSecureCallButton].filter(Boolean);
+  buttons.forEach((button) => { button.disabled = true; });
+  statusLabel.textContent = "Solicitando llamada segura...";
+
+  try {
+    const res = await fetch(`${API}/public/mobile/events/${currentEventId}/voice/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        target_type: "CENTRAL",
+        mode
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.status === "error") {
+      throw new Error(data.message || "No se pudo solicitar la llamada segura");
+    }
+
+    const waSession = data.voice_session?.wa_center_session_id || data.voice_session?.id || "";
+    statusLabel.textContent = waSession
+      ? `Llamada segura solicitada · ${waSession}`
+      : "Llamada segura solicitada. La central fue notificada.";
+    await refreshStatus();
+  } catch (error) {
+    console.error(error);
+    statusLabel.textContent = error.message || "No se pudo solicitar la llamada segura";
+    alert(statusLabel.textContent);
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
+  }
 }
 
 
@@ -1970,6 +2005,7 @@ cancelButton.addEventListener("click", cancelSOS);
 leaveFollowupButton.addEventListener("click", leaveFollowup);
 resumeFollowupButton?.addEventListener("click", resumeFollowup);
 voiceButton?.addEventListener("click", () => requestCall("voice"));
+resolverSecureCallButton?.addEventListener("click", () => requestCall("voice"));
 videoCallButton?.addEventListener("click", () => requestCall("video"));
 textButton.addEventListener("click", () => {
   textPanel.hidden = !textPanel.hidden;
