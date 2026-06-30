@@ -743,6 +743,7 @@ function updateResumeFollowupCard(stateText = null) {
 }
 
 function clearCurrentCaseLocal() {
+  resetSecureVoiceState();
   currentEventId = null;
   currentTicketId = null;
   setFollowupMinimized(false);
@@ -1035,6 +1036,7 @@ async function recoverActiveCase() {
       return false;
     }
 
+    resetSecureVoiceState();
     currentEventId = data.event.id;
     currentTicketId = data.event.ticket_id || data.ticket_id || null;
     setFollowupMinimized(true);
@@ -1224,6 +1226,7 @@ async function sendSOS() {
       throw new Error(data.message || ("Error HTTP " + res.status));
     }
 
+    resetSecureVoiceState();
     currentEventId = data.event_id;
     currentTicketId = data.ticket_id || null;
 
@@ -1301,6 +1304,7 @@ async function sendMobileSOSPayload({ alert_type, title, priority = 1, descripti
       throw new Error(data.message || ("Error HTTP " + res.status));
     }
 
+    resetSecureVoiceState();
     currentEventId = data.event_id;
     currentTicketId = data.ticket_id || null;
     localStorage.setItem("event_id", currentEventId);
@@ -1962,10 +1966,53 @@ function activeVoiceStatus(status) {
   return !["FAILED", "ENDED", "EXPIRED", "NO_ANSWER"].includes(String(status || "CREATED").toUpperCase());
 }
 
+function playNeighborRing() {
+  try {
+    if (navigator.vibrate) navigator.vibrate([250, 120, 250]);
+  } catch {}
+
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+    gain.connect(ctx.destination);
+    [0, 0.32].forEach((offset) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(760, ctx.currentTime + offset);
+      osc.connect(gain);
+      osc.start(ctx.currentTime + offset);
+      osc.stop(ctx.currentTime + offset + 0.22);
+    });
+    setTimeout(() => ctx.close().catch(() => null), 1300);
+  } catch (error) {
+    console.warn("No se pudo reproducir aviso de llamada", error);
+  }
+}
+
 function neighborIncomingVoiceSession(sessions = []) {
   return (sessions || []).find((session) => {
     if (!session || !activeVoiceStatus(session.status)) return false;
-    return String(session.requested_by || "").toUpperCase() !== "NEIGHBOR";
+
+    const requester = String(session.requested_by || "").toUpperCase();
+    const target = String(session.target_type || "").toUpperCase();
+
+    // El vecino no debe ver como "entrante" una llamada que él mismo solicitó.
+    if (requester === "NEIGHBOR") return false;
+
+    // Si no hay resolutor asignado todavía, nunca inventar "Claudio te está llamando".
+    if (requester === "RESOLVER") {
+      return target === "RESOLVER" && !!currentResolverName;
+    }
+
+    // La central sí puede llamar al vecino aunque todavía no exista resolutor.
+    if (requester === "OPERATOR" || requester === "CENTRAL") return true;
+
+    return false;
   }) || null;
 }
 
@@ -1980,9 +2027,10 @@ function prepareIncomingSecureVoiceSession(session) {
   if (!session) return;
   const nextKey = voiceSessionKey(session);
   const currentKey = voiceSessionKey(secureVoice.session);
-  if (secureVoice.call && nextKey && currentKey === nextKey) return;
+  if (nextKey && currentKey === nextKey) return;
 
   secureVoice.session = session;
+  playNeighborRing();
   setVoicePanelVisible(true);
   setVoiceStatus(`📞 ${voiceCallerLabel(session)} te está llamando. Toca Entrar a llamada para responder.`);
   if (voiceConnectButton) {
@@ -2063,6 +2111,21 @@ async function ensureJsSIPLoaded() {
   }
 
   throw new Error("No se pudo cargar el cliente WebRTC. Revisa conexión o vendor/jssip.min.js.");
+}
+
+function resetSecureVoiceState() {
+  try { if (secureVoice.call) secureVoice.call.terminate(); } catch {}
+  try { if (secureVoice.ua) secureVoice.ua.stop(); } catch {}
+
+  secureVoice = { session: null, ua: null, call: null, status: "idle" };
+  setVoicePanelVisible(false);
+  setVoiceStatus("Llamada segura lista.");
+  if (voiceConnectButton) {
+    voiceConnectButton.textContent = "Entrar a llamada";
+    voiceConnectButton.disabled = false;
+  }
+  if (voiceHangupButton) voiceHangupButton.disabled = true;
+  if (voiceRemoteAudio) voiceRemoteAudio.srcObject = null;
 }
 
 function stopSecureVoice() {
