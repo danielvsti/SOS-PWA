@@ -66,6 +66,11 @@ const backButton = document.getElementById("backButton");
 const cancelButton = document.getElementById("cancelButton");
 const leaveFollowupButton = document.getElementById("leaveFollowupButton");
 const voiceButton = document.getElementById("voiceButton");
+const voiceSessionPanel = document.getElementById("voiceSessionPanel");
+const voiceSessionStatus = document.getElementById("voiceSessionStatus");
+const voiceConnectButton = document.getElementById("voiceConnectButton");
+const voiceHangupButton = document.getElementById("voiceHangupButton");
+const voiceRemoteAudio = document.getElementById("voiceRemoteAudio");
 const textButton = document.getElementById("textButton");
 const audioButton = document.getElementById("audioButton");
 const videoCallButton = document.getElementById("videoCallButton");
@@ -127,6 +132,12 @@ let recordingTimeout = null;
 let recordingTimerInterval = null;
 let recordingStartedAt = null;
 let activeIncomingCall = null;
+let secureVoice = {
+  session: null,
+  ua: null,
+  call: null,
+  status: "idle"
+};
 let handledCallActionIds = JSON.parse(localStorage.getItem("handled_call_action_ids") || "[]");
 let pendingOtpPhone = localStorage.getItem("pending_otp_phone") || null;
 let pendingOtpPurpose = localStorage.getItem("pending_otp_purpose") || "LOGIN";
@@ -1927,6 +1938,164 @@ async function uploadSelectedVideo() {
   }
 }
 
+
+function setVoicePanelVisible(visible) {
+  if (voiceSessionPanel) voiceSessionPanel.hidden = !visible;
+}
+
+function setVoiceStatus(message) {
+  if (voiceSessionStatus) voiceSessionStatus.textContent = message || "Llamada segura lista";
+}
+
+function getVoiceWebrtcPayload(voiceSession) {
+  if (!voiceSession) return null;
+  return voiceSession.webrtc || voiceSession.party_a_webrtc || null;
+}
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const existing = Array.from(document.scripts).find((script) => script.src && script.src.includes(src));
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      if (window.JsSIP) resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureJsSIPLoaded() {
+  if (window.JsSIP) return;
+
+  const sources = [
+    "vendor/jssip.min.js",
+    "https://cdn.jsdelivr.net/npm/jssip@3.10.1/dist/jssip.min.js",
+    "https://unpkg.com/jssip@3.10.1/dist/jssip.min.js"
+  ];
+
+  for (const src of sources) {
+    try {
+      await loadScriptOnce(src);
+      if (window.JsSIP) return;
+    } catch (error) {
+      console.warn("No se pudo cargar JsSIP desde", src, error);
+    }
+  }
+
+  throw new Error("No se pudo cargar el cliente WebRTC. Revisa conexión o vendor/jssip.min.js.");
+}
+
+function stopSecureVoice() {
+  try {
+    if (secureVoice.call) secureVoice.call.terminate();
+  } catch {}
+
+  try {
+    if (secureVoice.ua) secureVoice.ua.stop();
+  } catch {}
+
+  secureVoice.ua = null;
+  secureVoice.call = null;
+  secureVoice.status = "ended";
+  setVoiceStatus("Llamada segura finalizada");
+  if (voiceConnectButton) voiceConnectButton.disabled = false;
+  if (voiceHangupButton) voiceHangupButton.disabled = true;
+}
+
+async function connectSecureVoice() {
+  const webrtc = getVoiceWebrtcPayload(secureVoice.session);
+  if (!webrtc) {
+    setVoiceStatus("No hay credenciales WebRTC disponibles para esta llamada.");
+    return;
+  }
+
+  await ensureJsSIPLoaded();
+
+  if (voiceConnectButton) voiceConnectButton.disabled = true;
+  if (voiceHangupButton) voiceHangupButton.disabled = false;
+  setVoiceStatus("Conectando audio seguro...");
+
+  const sipDomain = webrtc.sip_domain || "wa-center.vsti.cl";
+  const wssUrl = webrtc.wss_url || "wss://wa-center.vsti.cl/ws";
+  const destination = webrtc.destination;
+
+  if (!webrtc.username || !destination) {
+    throw new Error("Credenciales WebRTC incompletas");
+  }
+
+  const socket = new JsSIP.WebSocketInterface(wssUrl);
+  const config = {
+    sockets: [socket],
+    uri: `sip:${webrtc.username}@${sipDomain}`,
+    authorization_user: webrtc.username,
+    register: true,
+    session_timers: false,
+    realm: webrtc.realm || "asterisk"
+  };
+
+  if (webrtc.ha1) {
+    config.ha1 = webrtc.ha1;
+  } else {
+    config.password = webrtc.password;
+  }
+
+  const ua = new JsSIP.UA(config);
+  secureVoice.ua = ua;
+
+  ua.on("connected", () => setVoiceStatus("WebSocket conectado. Registrando audio..."));
+  ua.on("disconnected", () => setVoiceStatus("WebSocket desconectado"));
+  ua.on("registrationFailed", (e) => {
+    console.error("WA-Center registration failed", e);
+    setVoiceStatus(`No fue posible registrar la llamada segura (${e.cause || "registro fallido"})`);
+    if (voiceConnectButton) voiceConnectButton.disabled = false;
+    if (voiceHangupButton) voiceHangupButton.disabled = true;
+  });
+
+  ua.on("registered", () => {
+    setVoiceStatus("Registrado. Entrando a la sala de voz...");
+    const target = `sip:${destination}@${sipDomain}`;
+    const options = {
+      mediaConstraints: { audio: true, video: false },
+      pcConfig: { iceServers: secureVoice.session?.ice_servers || [] },
+      eventHandlers: {
+        progress: () => setVoiceStatus("Llamada segura en progreso..."),
+        confirmed: () => setVoiceStatus("En llamada segura"),
+        ended: () => stopSecureVoice(),
+        failed: (e) => {
+          console.error("WA-Center call failed", e);
+          setVoiceStatus(`Llamada fallida (${e.cause || "sin detalle"})`);
+          if (voiceConnectButton) voiceConnectButton.disabled = false;
+          if (voiceHangupButton) voiceHangupButton.disabled = true;
+        }
+      }
+    };
+
+    const call = ua.call(target, options);
+    secureVoice.call = call;
+
+    call.connection.addEventListener("track", (event) => {
+      if (voiceRemoteAudio) voiceRemoteAudio.srcObject = event.streams[0];
+    });
+  });
+
+  ua.start();
+}
+
+function prepareSecureVoiceSession(voiceSession) {
+  secureVoice.session = voiceSession;
+  setVoicePanelVisible(true);
+  setVoiceStatus("Llamada segura creada. Presiona Conectar audio para hablar con la central.");
+  if (voiceConnectButton) voiceConnectButton.disabled = false;
+  if (voiceHangupButton) voiceHangupButton.disabled = true;
+}
+
 async function requestCall(mode = "voice") {
   if (!currentEventId) {
     statusLabel.textContent = "Primero debes tener un caso activo para solicitar llamada segura.";
@@ -1955,8 +2124,9 @@ async function requestCall(mode = "voice") {
 
     const waSession = data.voice_session?.wa_center_session_id || data.voice_session?.id || "";
     statusLabel.textContent = waSession
-      ? `Llamada segura solicitada · ${waSession}`
-      : "Llamada segura solicitada. La central fue notificada.";
+      ? `Llamada segura creada · ${waSession}`
+      : "Llamada segura creada. La central fue notificada.";
+    prepareSecureVoiceSession(data.voice_session);
     await refreshStatus();
   } catch (error) {
     console.error(error);
@@ -2006,6 +2176,17 @@ leaveFollowupButton.addEventListener("click", leaveFollowup);
 resumeFollowupButton?.addEventListener("click", resumeFollowup);
 voiceButton?.addEventListener("click", () => requestCall("voice"));
 resolverSecureCallButton?.addEventListener("click", () => requestCall("voice"));
+voiceConnectButton?.addEventListener("click", async () => {
+  try {
+    await connectSecureVoice();
+  } catch (error) {
+    console.error(error);
+    setVoiceStatus(error.message || "No fue posible conectar la llamada segura");
+    if (voiceConnectButton) voiceConnectButton.disabled = false;
+    if (voiceHangupButton) voiceHangupButton.disabled = true;
+  }
+});
+voiceHangupButton?.addEventListener("click", stopSecureVoice);
 videoCallButton?.addEventListener("click", () => requestCall("video"));
 textButton.addEventListener("click", () => {
   textPanel.hidden = !textPanel.hidden;

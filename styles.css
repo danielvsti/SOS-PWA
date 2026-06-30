@@ -1484,3 +1484,38 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
     grid-template-columns: 1fr;
   }
 }
+
+
+.voice-session-panel {
+  margin: 16px 0;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(180deg, #eff6ff, #ffffff);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, .12);
+}
+
+.voice-session-head strong {
+  display: block;
+  color: #0f172a;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.voice-session-head p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.voice-session-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.voice-session-actions .compact {
+  margin-top: 0;
+  width: 100%;
+}

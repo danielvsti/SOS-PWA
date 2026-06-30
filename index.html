@@ -410,6 +410,20 @@
         </button>
       </div>
 
+      <div id="voiceSessionPanel" class="voice-session-panel" hidden>
+        <div class="voice-session-head">
+          <div>
+            <strong>📞 Llamada segura</strong>
+            <p id="voiceSessionStatus">Llamada segura lista.</p>
+          </div>
+        </div>
+        <div class="voice-session-actions">
+          <button id="voiceConnectButton" class="primary-action compact" type="button">Conectar audio</button>
+          <button id="voiceHangupButton" class="secondary-action compact" type="button" disabled>Colgar</button>
+        </div>
+        <audio id="voiceRemoteAudio" autoplay playsinline></audio>
+      </div>
+
       <div class="followup-card">
         <strong>¿Ya informaste lo necesario?</strong>
         <p>Puede volver al inicio sin cancelar la emergencia. La central y el resolutor seguirán gestionando el caso.</p>
