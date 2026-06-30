@@ -793,20 +793,26 @@ function renderCaseProgress(progress) {
     // v26.3: no mostramos el teléfono celular como canal principal.
     // La comunicación futura será in-app vía WA-CENTER/Asterisk WebRTC, asociada al ticket.
     resolverContactText.textContent =
-      `${resolverName} está coordinando tu atención. La central gestionará cualquier comunicación segura si es necesario.`;
+      `${resolverName} está coordinando tu atención. Puedes pedir una llamada segura directamente con el resolutor.`;
 
     if (resolverSecureCallButton) {
       resolverSecureCallButton.hidden = false;
       resolverSecureCallButton.disabled = false;
-      resolverSecureCallButton.textContent = "Solicitar llamada segura";
-      resolverSecureCallButton.title = "Solicita una llamada segura asociada a este caso";
+      resolverSecureCallButton.textContent = `📞 Llamar a ${resolverName}`;
+      resolverSecureCallButton.title = `Solicitar llamada segura con ${resolverName}`;
     }
 
+    if (voiceButton) voiceButton.hidden = true;
     resolverContactCard.hidden = false;
   } else {
     currentResolverName = null;
     resolverContactCard.hidden = true;
     if (resolverSecureCallButton) resolverSecureCallButton.hidden = true;
+    if (voiceButton) {
+      voiceButton.hidden = false;
+      const span = voiceButton.querySelector("span");
+      if (span) span.textContent = "Llamar central";
+    }
   }
 
   const steps = Array.isArray(progress.steps) ? progress.steps : [];
@@ -1705,6 +1711,11 @@ async function refreshStatus() {
       showIncomingCall(data.pending_call_request);
     }
 
+    const incomingVoiceSession = neighborIncomingVoiceSession(data?.voice_sessions || []);
+    if (incomingVoiceSession && !terminalStates.includes(state)) {
+      prepareIncomingSecureVoiceSession(incomingVoiceSession);
+    }
+
     eventStatus.textContent = state;
     statusLabel.textContent = currentTicketId
       ? `Estado: ${state} · ${shortTicketId(currentTicketId)}`
@@ -1942,6 +1953,65 @@ async function uploadSelectedVideo() {
 }
 
 
+
+function voiceSessionKey(session) {
+  return session?.id || session?.wa_center_session_id || null;
+}
+
+function activeVoiceStatus(status) {
+  return !["FAILED", "ENDED", "EXPIRED", "NO_ANSWER"].includes(String(status || "CREATED").toUpperCase());
+}
+
+function neighborIncomingVoiceSession(sessions = []) {
+  return (sessions || []).find((session) => {
+    if (!session || !activeVoiceStatus(session.status)) return false;
+    return String(session.requested_by || "").toUpperCase() !== "NEIGHBOR";
+  }) || null;
+}
+
+function voiceCallerLabel(session) {
+  const requester = String(session?.requested_by || "").toUpperCase();
+  if (requester === "RESOLVER") return currentResolverName || "el resolutor";
+  if (requester === "OPERATOR") return "la central";
+  return secureVoiceTargetLabel();
+}
+
+function prepareIncomingSecureVoiceSession(session) {
+  if (!session) return;
+  const nextKey = voiceSessionKey(session);
+  const currentKey = voiceSessionKey(secureVoice.session);
+  if (secureVoice.call && nextKey && currentKey === nextKey) return;
+
+  secureVoice.session = session;
+  setVoicePanelVisible(true);
+  setVoiceStatus(`📞 ${voiceCallerLabel(session)} te está llamando. Toca Entrar a llamada para responder.`);
+  if (voiceConnectButton) {
+    voiceConnectButton.textContent = "Entrar a llamada";
+    voiceConnectButton.disabled = false;
+  }
+  if (voiceHangupButton) voiceHangupButton.disabled = false;
+}
+
+async function ensureNeighborVoiceCredentials() {
+  if (getVoiceWebrtcPayload(secureVoice.session)) return secureVoice.session;
+
+  const sessionId = voiceSessionKey(secureVoice.session);
+  if (!currentEventId || !sessionId) return secureVoice.session;
+
+  setVoiceStatus("Obteniendo credenciales seguras de audio...");
+  const res = await fetch(`${API}/public/mobile/events/${currentEventId}/voice/sessions/${sessionId}/join`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status === "error") {
+    throw new Error(data.message || "No fue posible entrar a la llamada segura");
+  }
+  secureVoice.session = data.voice_session;
+  return secureVoice.session;
+}
+
 function setVoicePanelVisible(visible) {
   if (voiceSessionPanel) voiceSessionPanel.hidden = !visible;
 }
@@ -2007,15 +2077,16 @@ function stopSecureVoice() {
   secureVoice.ua = null;
   secureVoice.call = null;
   secureVoice.status = "ended";
-  setVoiceStatus("Llamada segura finalizada");
+  setVoiceStatus("Llamada segura finalizada. Puedes volver a llamar si lo necesitas.");
   if (voiceConnectButton) voiceConnectButton.disabled = false;
   if (voiceHangupButton) voiceHangupButton.disabled = true;
 }
 
 async function connectSecureVoice() {
+  await ensureNeighborVoiceCredentials();
   const webrtc = getVoiceWebrtcPayload(secureVoice.session);
   if (!webrtc) {
-    setVoiceStatus("No hay credenciales WebRTC disponibles para esta llamada.");
+    setVoiceStatus("Primero solicita o acepta una llamada segura.");
     return;
   }
 
@@ -2023,7 +2094,7 @@ async function connectSecureVoice() {
 
   if (voiceConnectButton) voiceConnectButton.disabled = true;
   if (voiceHangupButton) voiceHangupButton.disabled = false;
-  setVoiceStatus("Conectando audio seguro...");
+  setVoiceStatus("Entrando a la llamada segura...");
 
   const sipDomain = webrtc.sip_domain || "wa-center.vsti.cl";
   const wssUrl = webrtc.wss_url || "wss://wa-center.vsti.cl/ws";
@@ -2052,8 +2123,8 @@ async function connectSecureVoice() {
   const ua = new JsSIP.UA(config);
   secureVoice.ua = ua;
 
-  ua.on("connected", () => setVoiceStatus("WebSocket conectado. Registrando audio..."));
-  ua.on("disconnected", () => setVoiceStatus("WebSocket desconectado"));
+  ua.on("connected", () => setVoiceStatus("Audio seguro conectado. Registrando llamada..."));
+  ua.on("disconnected", () => setVoiceStatus("Audio desconectado. Toca Entrar a llamada para reconectar."));
   ua.on("registrationFailed", (e) => {
     console.error("WA-Center registration failed", e);
     setVoiceStatus(`No fue posible registrar la llamada segura (${e.cause || "registro fallido"})`);
@@ -2062,14 +2133,14 @@ async function connectSecureVoice() {
   });
 
   ua.on("registered", () => {
-    setVoiceStatus("Registrado. Entrando a la sala de voz...");
+    setVoiceStatus("Entrando a la sala de voz segura...");
     const target = `sip:${destination}@${sipDomain}`;
     const options = {
       mediaConstraints: { audio: true, video: false },
       pcConfig: { iceServers: secureVoice.session?.ice_servers || [] },
       eventHandlers: {
-        progress: () => setVoiceStatus("Llamada segura en progreso..."),
-        confirmed: () => setVoiceStatus("En llamada segura"),
+        progress: () => setVoiceStatus("Llamando... esperando que el otro lado atienda."),
+        confirmed: () => setVoiceStatus("✅ En llamada segura. Ya pueden hablar."),
         ended: () => stopSecureVoice(),
         failed: (e) => {
           console.error("WA-Center call failed", e);
@@ -2098,9 +2169,12 @@ function secureVoiceTargetLabel() {
 function prepareSecureVoiceSession(voiceSession) {
   secureVoice.session = voiceSession;
   setVoicePanelVisible(true);
-  setVoiceStatus(`Llamada segura creada. Presiona Conectar audio para hablar con ${secureVoiceTargetLabel()}.`);
-  if (voiceConnectButton) voiceConnectButton.disabled = false;
-  if (voiceHangupButton) voiceHangupButton.disabled = true;
+  setVoiceStatus(`Llamada solicitada a ${secureVoiceTargetLabel()}. Toca Entrar a llamada para activar tu audio.`);
+  if (voiceConnectButton) {
+    voiceConnectButton.textContent = "Entrar a llamada";
+    voiceConnectButton.disabled = false;
+  }
+  if (voiceHangupButton) voiceHangupButton.disabled = false;
 }
 
 async function requestCall(mode = "voice") {
@@ -2111,7 +2185,7 @@ async function requestCall(mode = "voice") {
 
   const buttons = [voiceButton, resolverSecureCallButton].filter(Boolean);
   buttons.forEach((button) => { button.disabled = true; });
-  statusLabel.textContent = "Solicitando llamada segura...";
+  statusLabel.textContent = `Solicitando llamada segura a ${secureVoiceTargetLabel()}...`;
 
   try {
     const res = await fetch(`${API}/public/mobile/events/${currentEventId}/voice/request`, {
@@ -2119,7 +2193,8 @@ async function requestCall(mode = "voice") {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: userId,
-        mode
+        mode,
+        target_type: currentResolverName ? "RESOLVER" : "CENTRAL"
       })
     });
 
@@ -2128,10 +2203,7 @@ async function requestCall(mode = "voice") {
       throw new Error(data.message || "No se pudo solicitar la llamada segura");
     }
 
-    const waSession = data.voice_session?.wa_center_session_id || data.voice_session?.id || "";
-    statusLabel.textContent = waSession
-      ? `Llamada segura creada · ${waSession}`
-      : `Llamada segura creada. Esperando respuesta de ${secureVoiceTargetLabel()}.`;
+    statusLabel.textContent = `Llamada segura solicitada a ${secureVoiceTargetLabel()}.`;
     prepareSecureVoiceSession(data.voice_session);
     await refreshStatus();
   } catch (error) {

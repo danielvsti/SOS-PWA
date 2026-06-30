@@ -1519,3 +1519,5 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
   margin-top: 0;
   width: 100%;
 }
+
+.communication-grid .comm-button[hidden], .comm-button[hidden] { display: none !important; }
