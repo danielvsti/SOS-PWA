@@ -123,6 +123,7 @@ if (neighborProfile?.id && !userId) {
 
 let currentEventId = localStorage.getItem("event_id");
 let currentTicketId = localStorage.getItem("ticket_id");
+let currentResolverName = null;
 let followupMinimized = localStorage.getItem("followup_minimized") === "true";
 let selectedAlertType = localStorage.getItem("current_alert_type") || "SOS_MANUAL";
 let mediaRecorder = null;
@@ -786,6 +787,7 @@ function renderCaseProgress(progress) {
 
   if (progress.resolver) {
     const resolverName = progress.resolver.name || "Resolutor municipal";
+    currentResolverName = resolverName;
     resolverContactName.textContent = resolverName;
 
     // v26.3: no mostramos el teléfono celular como canal principal.
@@ -802,6 +804,7 @@ function renderCaseProgress(progress) {
 
     resolverContactCard.hidden = false;
   } else {
+    currentResolverName = null;
     resolverContactCard.hidden = true;
     if (resolverSecureCallButton) resolverSecureCallButton.hidden = true;
   }
@@ -2088,10 +2091,14 @@ async function connectSecureVoice() {
   ua.start();
 }
 
+function secureVoiceTargetLabel() {
+  return currentResolverName ? `el resolutor ${currentResolverName}` : "la central";
+}
+
 function prepareSecureVoiceSession(voiceSession) {
   secureVoice.session = voiceSession;
   setVoicePanelVisible(true);
-  setVoiceStatus("Llamada segura creada. Presiona Conectar audio para hablar con la central.");
+  setVoiceStatus(`Llamada segura creada. Presiona Conectar audio para hablar con ${secureVoiceTargetLabel()}.`);
   if (voiceConnectButton) voiceConnectButton.disabled = false;
   if (voiceHangupButton) voiceHangupButton.disabled = true;
 }
@@ -2112,7 +2119,6 @@ async function requestCall(mode = "voice") {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: userId,
-        target_type: "CENTRAL",
         mode
       })
     });
@@ -2125,7 +2131,7 @@ async function requestCall(mode = "voice") {
     const waSession = data.voice_session?.wa_center_session_id || data.voice_session?.id || "";
     statusLabel.textContent = waSession
       ? `Llamada segura creada · ${waSession}`
-      : "Llamada segura creada. La central fue notificada.";
+      : `Llamada segura creada. Esperando respuesta de ${secureVoiceTargetLabel()}.`;
     prepareSecureVoiceSession(data.voice_session);
     await refreshStatus();
   } catch (error) {
