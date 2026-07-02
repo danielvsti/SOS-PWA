@@ -719,6 +719,44 @@ function updateTicketLabels() {
   ticketIdShortLabel.textContent = shortTicketId(currentTicketId);
 }
 
+
+function linkedIncidentStatusText(data) {
+  const count = Number(data?.report_count || 0);
+  if (!data?.incident_linked) return null;
+  return count > 1
+    ? `Incidente ya reportado · tu información fue sumada · ${count} reportes ciudadanos`
+    : "Incidente ya reportado · tu información fue sumada al caso activo";
+}
+
+function renderLinkedIncidentProgress(data) {
+  if (!data?.incident_linked) return;
+  const count = Number(data.report_count || 0);
+  renderCaseProgress({
+    ticket_state: "ACTIVE",
+    report_count: count,
+    is_primary_report: false,
+    headline: "Tu reporte fue sumado a un caso activo.",
+    detail: count > 1
+      ? `Este incidente ya estaba siendo gestionado. Ahora acumula ${count} reportes ciudadanos.`
+      : "Este incidente ya estaba siendo gestionado. Sumamos tu información para ayudar a la central.",
+    resolver: null,
+    steps: [
+      {
+        label: "Caso ya reportado",
+        detail: "La central ya estaba gestionando este incidente.",
+        done: true,
+        active: false
+      },
+      {
+        label: "Tu información fue agregada",
+        detail: "Tus datos, ubicación y antecedentes quedaron asociados al caso activo.",
+        done: true,
+        active: true
+      }
+    ]
+  });
+}
+
 function setFollowupMinimized(value) {
   followupMinimized = value === true;
 
@@ -1239,12 +1277,14 @@ async function sendSOS() {
 
     eventIdLabel.textContent = currentEventId;
     eventStatus.textContent = "ACTIVO";
-    statusLabel.textContent = currentTicketId
+    const linkedText = linkedIncidentStatusText(data);
+    statusLabel.textContent = linkedText || (currentTicketId
       ? `Alerta enviada · ${shortTicketId(currentTicketId)}`
-      : "Alerta enviada";
+      : "Alerta enviada");
 
     showActiveAlert();
     resetCaseProgress();
+    renderLinkedIncidentProgress(data);
   } catch (error) {
     console.error(error);
     gpsStatus.textContent = "ERROR";
@@ -1314,6 +1354,7 @@ async function sendMobileSOSPayload({ alert_type, title, priority = 1, descripti
     eventStatus.textContent = "ACTIVO";
     updateTicketLabels();
     resetCaseProgress();
+    renderLinkedIncidentProgress(data);
 
     if (silent) {
       setFollowupMinimized(true);
@@ -1322,9 +1363,10 @@ async function sendMobileSOSPayload({ alert_type, title, priority = 1, descripti
       showHome({ force: true });
     } else {
       setFollowupMinimized(false);
-      statusLabel.textContent = currentTicketId
+      const linkedText = linkedIncidentStatusText(data);
+      statusLabel.textContent = linkedText || (currentTicketId
         ? `Alerta enviada · ${shortTicketId(currentTicketId)}`
-        : "Alerta enviada";
+        : "Alerta enviada");
       showActiveAlert();
     }
 
