@@ -1557,6 +1557,8 @@ body.sensor-gesture-mode *:not(input):not(textarea):not(select) {
 
 html{ -webkit-text-size-adjust:100%; }
 
+html, body{ touch-action:manipulation; } /* evita el zoom por doble-tap */
+
 body{
   background:
     radial-gradient(1200px 600px at 50% -12%, #fff 0%, var(--ac-surface) 45%),
