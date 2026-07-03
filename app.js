@@ -426,10 +426,17 @@ function resetOtpDemo() {
   otpDemoCode.textContent = "";
 }
 
-function showOtpDemoCode(_code) {
-  // Los códigos OTP no se muestran en la App Vecino.
-  // En laboratorio se revisan en logs del backend con OTP_LOG_CODES=true.
-  resetOtpDemo();
+function showOtpDemoCode(code) {
+  if (!otpDemoCode) return;
+
+  const value = String(code || "").trim();
+  if (!value) {
+    resetOtpDemo();
+    return;
+  }
+
+  otpDemoCode.hidden = false;
+  otpDemoCode.textContent = `Código demo: ${value}`;
 }
 
 function showLogin() {
@@ -462,7 +469,7 @@ function showRegister() {
   fillRegisterFormFromProfile();
 }
 
-function showOtp({ phone, purpose = "LOGIN", mode = "login" } = {}) {
+function showOtp({ phone, purpose = "LOGIN", mode = "login", demoCode = null } = {}) {
   pendingOtpPhone = normalizePhone(phone || pendingOtpPhone);
   pendingOtpPurpose = purpose || pendingOtpPurpose || "LOGIN";
   pendingOtpMode = mode || pendingOtpMode || "login";
@@ -482,7 +489,7 @@ function showOtp({ phone, purpose = "LOGIN", mode = "login" } = {}) {
   cancelButton.hidden = true;
   otpCode.value = "";
   otpHelpText.textContent = `Ingresa el código enviado a ${pendingOtpPhone}.`;
-  showOtpDemoCode();
+  showOtpDemoCode(demoCode);
   statusLabel.textContent = "Código enviado";
   setTimeout(() => otpCode.focus(), 100);
 }
@@ -521,7 +528,8 @@ async function requestLoginCode() {
     showOtp({
       phone,
       purpose: "LOGIN",
-      mode: "login"
+      mode: "login",
+      demoCode: data.demo_code || null
     });
   } catch (error) {
     console.error(error);
@@ -574,7 +582,8 @@ async function registerNeighbor() {
     showOtp({
       phone,
       purpose: "REGISTER",
-      mode: "register"
+      mode: "register",
+      demoCode: data.demo_code || null
     });
   } catch (error) {
     console.error(error);
@@ -671,7 +680,8 @@ async function resendOtpCode() {
     showOtp({
       phone,
       purpose: pendingOtpPurpose || "LOGIN",
-      mode: pendingOtpMode || "login"
+      mode: pendingOtpMode || "login",
+      demoCode: data.demo_code || null
     });
   } catch (error) {
     console.error(error);
