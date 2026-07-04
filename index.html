@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
   <title>Alerta Comunal</title>
   <meta name="app-version" content="v26.3-alerta-comunal-webrtc-ready">
   <link rel="manifest" href="manifest.json">
@@ -13,6 +13,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Alerta Comunal">
   <meta name="format-detection" content="telephone=no">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
 </head>
 <body>
   <div id="recordingBanner" class="recording-banner" hidden>
@@ -401,19 +406,19 @@
 
       <div class="communication-grid">
         <button id="textButton" class="comm-button" type="button">
-          💬<span>Mensaje texto</span>
+          💬<span>Mensaje</span>
         </button>
 
         <button id="audioButton" class="comm-button" type="button">
-          🎙️<span>Mensaje audio</span>
+          🎙️<span>Audio</span>
         </button>
 
         <button id="voiceButton" class="comm-button" type="button">
           📞<span>Llamar central</span>
         </button>
 
-        <button id="videoUploadButton" class="comm-button wide" type="button">
-          📹<span>Grabar / subir video</span>
+        <button id="videoUploadButton" class="comm-button" type="button">
+          📹<span>Grabar video</span>
         </button>
       </div>
 
@@ -439,11 +444,23 @@
         </button>
       </div>
 
-      <div id="textPanel" class="message-box" hidden>
-        <textarea id="textMessage" rows="4" placeholder="Escribe un mensaje breve para la central..."></textarea>
-        <button id="sendTextButton" class="primary-action compact" type="button">
+      <div id="textPanel" class="message-modal" hidden role="dialog" aria-modal="true" aria-labelledby="textPanelTitle">
+        <div class="message-modal-card">
+          <div class="message-modal-head">
+            <div>
+              <strong id="textPanelTitle">Enviar mensaje a la central</strong>
+              <p>Escribe información breve y clara sobre lo que está ocurriendo.</p>
+            </div>
+            <button id="closeTextPanelButton" class="message-modal-close" type="button" aria-label="Cerrar mensaje">×</button>
+          </div>
+          <textarea id="textMessage" rows="4" placeholder="Escribe un mensaje breve para la central..."></textarea>
+          <div class="message-modal-actions">
+            <button id="sendTextButton" class="primary-action compact" type="button">
           Enviar mensaje
         </button>
+            <button id="cancelTextPanelButton" class="secondary-action compact" type="button">Cancelar</button>
+          </div>
+        </div>
       </div>
 
       <div id="audioPanel" class="message-box recording-box" hidden>
@@ -465,7 +482,7 @@
       Cancelar / falsa alarma
     </button>
 
-    <section class="info" aria-label="Información de alerta">
+    <section class="info qa-hidden-technical-info" aria-label="Información de alerta">
       <div>GPS: <span id="gpsStatus">pendiente</span></div>
       <div>Precisión: <span id="accuracy">-</span></div>
       <div>Estado: <span id="eventStatus">NORMAL</span></div>

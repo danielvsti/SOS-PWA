@@ -2094,3 +2094,40 @@ body.modal-open {
 }
 /* --- END QA v1 FINAL: botones modal mensaje en una sola fila --- */
 
+
+
+
+
+
+/* --- RECOVERY: scroll normal App Vecino --- */
+html,
+body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.container {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}
+
+/* Header vuelve a comportamiento no invasivo mientras estabilizamos */
+.neighbor-app-header {
+  position: relative !important;
+  top: auto !important;
+}
+
+/* Pantallas de detalle siempre con scroll */
+#activePanel,
+#activePanel:not([hidden]),
+#casePanel,
+#trackingPanel {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-bottom: max(48px, env(safe-area-inset-bottom, 0px)) !important;
+}
+/* --- END RECOVERY: scroll normal App Vecino --- */

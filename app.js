@@ -469,7 +469,8 @@ function showRegister() {
   fillRegisterFormFromProfile();
 }
 
-function showOtp({ phone, purpose = "LOGIN", mode = "login", demoCode = null } = {}) {
+function showOtp({
+ phone, purpose = "LOGIN", mode = "login", demoCode = null } = {}) {
   pendingOtpPhone = normalizePhone(phone || pendingOtpPhone);
   pendingOtpPurpose = purpose || pendingOtpPurpose || "LOGIN";
   pendingOtpMode = mode || pendingOtpMode || "login";
@@ -1112,7 +1113,24 @@ async function recoverActiveCase() {
   }
 }
 
-function showHome(options = {}) {
+
+function setNeighborScreenState(screen) {
+  const allowed = ["home", "categories", "active", "auth", "other"];
+  const value = allowed.includes(screen) ? screen : "other";
+
+  document.body.classList.remove(
+    "neighbor-screen-home",
+    "neighbor-screen-categories",
+    "neighbor-screen-active",
+    "neighbor-screen-auth",
+    "neighbor-screen-other"
+  );
+
+  document.body.classList.add(`neighbor-screen-${value}`);
+}
+
+function showHome(options = {
+}) {
   if (currentEventId && !followupMinimized && !options.force) return;
 
   if (!isNeighborRegistered()) {
@@ -1126,7 +1144,7 @@ function showHome(options = {}) {
   homePanel.hidden = false;
   categoryPanel.hidden = true;
   activePanel.hidden = true;
-  textPanel.hidden = true;
+  closeTextMessageModal();
   audioPanel.hidden = true;
   cancelButton.hidden = true;
   sosButton.disabled = !isNeighborAccountAllowed();
@@ -1808,6 +1826,22 @@ function blobToDataUrl(blob) {
   });
 }
 
+
+function openTextMessageModal() {
+  if (!requireTicket()) return;
+  textPanel.hidden = false;
+  textPanel.classList.add("is-open");
+  document.body.classList.add("modal-open");
+  setTimeout(() => textMessage?.focus(), 80);
+}
+
+function closeTextMessageModal() {
+  if (!textPanel) return;
+  closeTextMessageModal();
+  textPanel.classList.remove("is-open");
+  document.body.classList.remove("modal-open");
+}
+
 async function sendTextMessage() {
   if (!requireTicket()) return;
 
@@ -1843,7 +1877,7 @@ async function sendTextMessage() {
       body: message
     });
     textMessage.value = "";
-    textPanel.hidden = true;
+    closeTextMessageModal();
     statusLabel.textContent = "Mensaje enviado a la central";
     refreshStatus();
   } catch (error) {
@@ -2381,10 +2415,18 @@ voiceConnectButton?.addEventListener("click", async () => {
 });
 voiceHangupButton?.addEventListener("click", stopSecureVoice);
 videoCallButton?.addEventListener("click", () => requestCall("video"));
-textButton.addEventListener("click", () => {
-  textPanel.hidden = !textPanel.hidden;
-});
+textButton.addEventListener("click", openTextMessageModal);
 sendTextButton.addEventListener("click", sendTextMessage);
+
+document.getElementById("closeTextPanelButton")?.addEventListener("click", closeTextMessageModal);
+document.getElementById("cancelTextPanelButton")?.addEventListener("click", closeTextMessageModal);
+textPanel?.addEventListener("click", (event) => {
+  if (event.target === textPanel) closeTextMessageModal();
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && textPanel && !textPanel.hidden) closeTextMessageModal();
+});
+
 audioButton.addEventListener("click", toggleAudioRecording);
 stopAudioButton.addEventListener("click", toggleAudioRecording);
 acceptCallButton?.addEventListener("click", () => respondIncomingCall("ACCEPTED"));
@@ -2532,3 +2574,134 @@ async function initializeApp() {
 }
 
 initializeApp();
+
+
+/* --- QA v1 FORCE: ocultar caja técnica no útil para vecino --- */
+function hideNeighborTechnicalInfoBox() {
+  const ids = ["gpsStatus", "accuracy", "ticketId", "eventId", "statusText"];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+
+    const section = el.closest("section") || el.closest(".info") || el.parentElement;
+    if (!section) continue;
+
+    section.classList.add("qa-hidden-technical-info");
+    section.setAttribute("hidden", "hidden");
+    section.setAttribute("aria-hidden", "true");
+    section.style.setProperty("display", "none", "important");
+    section.style.setProperty("height", "0", "important");
+    section.style.setProperty("margin", "0", "important");
+    section.style.setProperty("padding", "0", "important");
+    section.style.setProperty("overflow", "hidden", "important");
+    break;
+  }
+}
+
+window.addEventListener("DOMContentLoaded", hideNeighborTechnicalInfoBox);
+window.addEventListener("load", hideNeighborTechnicalInfoBox);
+setTimeout(hideNeighborTechnicalInfoBox, 250);
+setTimeout(hideNeighborTechnicalInfoBox, 1000);
+
+
+/* --- QA v1 FINAL: cierre robusto modal mensaje texto --- */
+(function setupTextMessageModalCloseFix() {
+  function closeModal() {
+    const modal = document.getElementById("textPanel");
+    if (!modal) return;
+
+    modal.hidden = true;
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    modal.style.setProperty("display", "none", "important");
+    document.body.classList.remove("modal-open");
+  }
+
+  function openModalPatch() {
+    const modal = document.getElementById("textPanel");
+    if (!modal) return;
+
+    modal.hidden = false;
+    modal.classList.add("is-open");
+    modal.removeAttribute("aria-hidden");
+    modal.style.removeProperty("display");
+    document.body.classList.add("modal-open");
+
+    setTimeout(() => {
+      const textarea = document.getElementById("textMessage");
+      if (textarea) textarea.focus();
+    }, 80);
+  }
+
+  // Cierre por click en X, Cancelar o fondo oscuro.
+  document.addEventListener("click", function(event) {
+    const target = event.target;
+
+    if (
+      target?.id === "closeTextPanelButton" ||
+      target?.id === "cancelTextPanelButton" ||
+      target?.closest?.("#closeTextPanelButton") ||
+      target?.closest?.("#cancelTextPanelButton")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeModal();
+      return;
+    }
+
+    const modal = document.getElementById("textPanel");
+    if (modal && target === modal) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeModal();
+    }
+  }, true);
+
+  // Cierre por touch en iPhone, antes de que otro listener lo capture.
+  document.addEventListener("touchend", function(event) {
+    const target = event.target;
+
+    if (
+      target?.id === "closeTextPanelButton" ||
+      target?.id === "cancelTextPanelButton" ||
+      target?.closest?.("#closeTextPanelButton") ||
+      target?.closest?.("#cancelTextPanelButton")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeModal();
+    }
+  }, { capture: true, passive: false });
+
+  // Escape en browser.
+  window.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") closeModal();
+  });
+
+  // Reforzar botón Mensaje para abrir modal.
+  window.addEventListener("DOMContentLoaded", function() {
+    const textButton = document.getElementById("textButton");
+    if (textButton && !textButton.dataset.qaModalOpenFix) {
+      textButton.dataset.qaModalOpenFix = "true";
+      textButton.addEventListener("click", function(event) {
+        event.preventDefault();
+        openModalPatch();
+      }, true);
+    }
+
+    const closeBtn = document.getElementById("closeTextPanelButton");
+    const cancelBtn = document.getElementById("cancelTextPanelButton");
+    if (closeBtn) closeBtn.type = "button";
+    if (cancelBtn) cancelBtn.type = "button";
+  });
+
+  // Exponer por si sendTextMessage quiere cerrar después de enviar.
+  window.closeTextMessageModal = closeModal;
+})();
+/* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
+
+
+
+
+
+
