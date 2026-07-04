@@ -1807,3 +1807,290 @@ button, .emergency-option, .comm-button, input[type="checkbox"]{
   #sosButton{ font-size:56px; }
   .emergency-grid{ gap:10px; }
 }
+
+
+/* --- QA v1: ocultar información técnica no útil para vecino --- */
+/* Se mantiene el DOM porque app.js actualiza estos IDs internamente. */
+.info[aria-label="Información de alerta"],
+section.info[aria-label="Información de alerta"] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+
+
+/* --- QA v1 FORCE: ocultar caja técnica GPS/Precisión/Ticket/Evento --- */
+.qa-hidden-technical-info,
+.info.qa-hidden-technical-info,
+section.qa-hidden-technical-info,
+section.info[aria-label="Información de alerta"],
+section.info:has(#gpsStatus),
+section.info:has(#accuracy),
+section.info:has(#ticketId),
+section.info:has(#eventId),
+section.info:has(#statusText) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+
+/* --- QA v1: comunicación 2x2 + mensaje texto en popup --- */
+.communication-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin: 18px 0 !important;
+}
+
+.communication-grid .comm-button,
+.communication-grid .comm-button.wide,
+.comm-button.wide {
+  grid-column: auto !important;
+  min-height: 112px !important;
+  height: auto !important;
+  width: 100% !important;
+}
+
+.communication-grid .comm-button span {
+  font-size: clamp(15px, 3.2vw, 18px) !important;
+  line-height: 1.12 !important;
+  text-align: center !important;
+}
+
+.message-modal[hidden] {
+  display: none !important;
+}
+
+.message-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 18px !important;
+  background: rgba(15, 23, 42, 0.42) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.message-modal-card {
+  width: min(620px, 100%) !important;
+  background: #ffffff !important;
+  border-radius: 28px !important;
+  padding: 22px !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.34) !important;
+  border: 1px solid rgba(148, 163, 184, 0.36) !important;
+}
+
+.message-modal-head {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin-bottom: 14px !important;
+}
+
+.message-modal-head strong {
+  display: block !important;
+  font-size: clamp(22px, 4.8vw, 30px) !important;
+  line-height: 1.08 !important;
+  color: #111827 !important;
+}
+
+.message-modal-head p {
+  margin: 6px 0 0 !important;
+  font-size: clamp(15px, 3.2vw, 18px) !important;
+  line-height: 1.35 !important;
+  color: #4b5563 !important;
+}
+
+.message-modal-close {
+  flex: 0 0 auto !important;
+  width: 46px !important;
+  height: 46px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: #eef2f7 !important;
+  color: #111827 !important;
+  font-size: 30px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+}
+
+.message-modal textarea {
+  width: 100% !important;
+  min-height: 150px !important;
+  border: 2px solid #d1d5db !important;
+  border-radius: 18px !important;
+  padding: 16px !important;
+  font-size: 20px !important;
+  line-height: 1.35 !important;
+  resize: vertical !important;
+  box-sizing: border-box !important;
+}
+
+.message-modal-actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  margin-top: 14px !important;
+}
+
+.message-modal-actions .primary-action,
+.message-modal-actions .secondary-action {
+  margin: 0 !important;
+  min-height: 54px !important;
+  border-radius: 16px !important;
+}
+
+body.modal-open {
+  overflow: hidden !important;
+}
+
+@media (min-width: 720px) {
+  .message-modal {
+    align-items: center !important;
+  }
+}
+/* --- END QA v1: comunicación 2x2 + mensaje texto en popup --- */
+
+
+/* --- QA v1 FINAL: cierre modal mensaje texto + safe area --- */
+.message-modal[hidden] {
+  display: none !important;
+}
+
+.message-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
+  background: rgba(15, 23, 42, 0.46) !important;
+  box-sizing: border-box !important;
+  overflow: auto !important;
+}
+
+.message-modal-card {
+  position: relative !important;
+  width: min(92vw, 560px) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100vh - 32px) !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
+  margin: auto !important;
+}
+
+.message-modal-close,
+#closeTextPanelButton,
+#cancelTextPanelButton {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.message-modal-actions {
+  grid-template-columns: 1fr 1fr !important;
+}
+
+#cancelTextPanelButton {
+  order: 2 !important;
+}
+
+#sendTextButton {
+  order: 1 !important;
+}
+
+@media (max-width: 520px) {
+  .message-modal {
+    align-items: flex-end !important;
+    padding: 14px !important;
+  }
+
+  .message-modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 24px !important;
+  }
+
+  .message-modal-actions {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* --- END QA v1 FINAL: cierre modal mensaje texto + safe area --- */
+
+
+/* --- QA v1 FINAL: botones modal mensaje en una sola fila --- */
+.message-modal-actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  margin-top: 16px !important;
+}
+
+#cancelTextPanelButton {
+  order: 1 !important;
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 2px solid #cbd5e1 !important;
+  box-shadow: none !important;
+}
+
+#sendTextButton {
+  order: 2 !important;
+  background: linear-gradient(180deg, #ef233c 0%, #b80f24 100%) !important;
+  color: #ffffff !important;
+  border: 0 !important;
+}
+
+#cancelTextPanelButton,
+#sendTextButton {
+  width: 100% !important;
+  min-height: 58px !important;
+  border-radius: 18px !important;
+  font-size: clamp(16px, 3.7vw, 20px) !important;
+  font-weight: 900 !important;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
+
+/* En pantallas muy angostas se mantiene en dos columnas, pero más compacto */
+@media (max-width: 420px) {
+  .message-modal-actions {
+    grid-template-columns: 0.9fr 1.1fr !important;
+    gap: 10px !important;
+  }
+
+  #cancelTextPanelButton,
+  #sendTextButton {
+    min-height: 54px !important;
+    font-size: 16px !important;
+    border-radius: 16px !important;
+    padding: 0 10px !important;
+  }
+}
+/* --- END QA v1 FINAL: botones modal mensaje en una sola fila --- */
+
