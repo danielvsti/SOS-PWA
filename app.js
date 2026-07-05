@@ -1,6 +1,12 @@
 const SOS_CONFIG = window.SOS_CONFIG || {};
 const API = SOS_CONFIG.API_BASE || "https://sos.vsti.cl";
 const CONTROL_CENTER_CODE = "CC-VINA";
+const IS_APP_STANDALONE =
+  window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
+  window.navigator.standalone === true ||
+  Boolean(window.Capacitor?.isNativePlatform?.());
+
+document.documentElement.classList.toggle("app-standalone", IS_APP_STANDALONE);
 
 let userId = localStorage.getItem("user_id");
 let neighborProfile = JSON.parse(localStorage.getItem("neighbor_profile") || "null");
@@ -2744,7 +2750,6 @@ setTimeout(hideNeighborTechnicalInfoBox, 1000);
   window.closeTextMessageModal = closeModal;
 })();
 /* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
-
 
 
 
