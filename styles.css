@@ -2478,3 +2478,99 @@ html.app-standalone #cancelButton:not([hidden]) {
 html.app-standalone .recording-banner {
   bottom: calc(58px + var(--ac-safe-bottom));
 }
+
+/* Llamada de emergencia: overlay contenido, sin alterar el footer ni el layout. */
+body.voice-call-open {
+  overflow: hidden;
+}
+
+.voice-session-panel {
+  position: fixed;
+  z-index: 320;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding:
+    max(20px, var(--ac-safe-top))
+    20px
+    max(20px, var(--ac-safe-bottom));
+  border: 0;
+  border-radius: 0;
+  background: rgba(6, 13, 28, .88);
+  box-shadow: none;
+  backdrop-filter: blur(14px);
+}
+
+.voice-session-panel[hidden] {
+  display: none !important;
+}
+
+.voice-call-card {
+  width: min(100%, 380px);
+  padding: 30px 22px 22px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 28px;
+  background: linear-gradient(180deg, #172033, #0b1220);
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, .42);
+}
+
+.voice-call-icon {
+  display: grid;
+  width: 86px;
+  height: 86px;
+  margin: 0 auto 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .1);
+  font-size: 42px;
+  animation: voice-call-pulse 1.8s ease-in-out infinite;
+}
+
+.voice-call-card h2 {
+  margin: 0 0 10px;
+  color: #fff;
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.voice-call-card #voiceSessionStatus {
+  min-height: 48px;
+  margin: 0;
+  color: #d8e0ed;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.voice-call-timer {
+  margin-top: 14px;
+  color: #fff;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.voice-call-card .voice-session-actions {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  margin-top: 24px;
+}
+
+.voice-call-card .voice-session-actions button {
+  min-height: 50px;
+  margin: 0;
+  border: 0;
+  border-radius: 16px;
+}
+
+.voice-hangup-button {
+  background: #dc2626;
+  color: #fff;
+  font-weight: 800;
+}
+
+@keyframes voice-call-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, .12); }
+  50% { transform: scale(1.04); box-shadow: 0 0 0 14px rgba(255, 255, 255, 0); }
+}
