@@ -921,7 +921,16 @@ function formatActivityTime(value) {
 function renderCaseActivity(items = []) {
   if (!caseActivityList || !caseActivityEmpty) return;
 
-  const list = Array.isArray(items) ? items : [];
+  const list = (Array.isArray(items) ? items : [])
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const leftTime = new Date(left.item?.created_at || 0).getTime();
+      const rightTime = new Date(right.item?.created_at || 0).getTime();
+      const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
+      const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
+      return safeLeftTime - safeRightTime || left.index - right.index;
+    })
+    .map(({ item }) => item);
   caseActivityEmpty.hidden = list.length > 0;
 
   caseActivityList.innerHTML = list.map((item) => {
@@ -929,7 +938,6 @@ function renderCaseActivity(items = []) {
     const title = item.title || "Actualización enviada";
     const body = item.body || "";
     const mediaUrl = item.media_url || "";
-    const fileName = item.file_name || "";
     const mediaLink = mediaUrl
       ? `<a class="case-activity-link" href="${escapeHtml(mediaUrl)}" target="_blank" rel="noopener">Ver evidencia</a>`
       : "";
@@ -943,7 +951,6 @@ function renderCaseActivity(items = []) {
             <span>${escapeHtml(formatActivityTime(item.created_at))}</span>
           </div>
           ${body ? `<p>${escapeHtml(body)}</p>` : ""}
-          ${fileName ? `<p class="case-activity-file">${escapeHtml(fileName)}</p>` : ""}
           ${mediaLink}
         </div>
       </div>
@@ -962,7 +969,7 @@ function prependCaseActivity(item) {
   }]);
 
   if (current) {
-    caseActivityList.insertAdjacentHTML("beforeend", current);
+    caseActivityList.insertAdjacentHTML("afterbegin", current);
   }
 }
 
@@ -2737,7 +2744,6 @@ setTimeout(hideNeighborTechnicalInfoBox, 1000);
   window.closeTextMessageModal = closeModal;
 })();
 /* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
-
 
 
 
