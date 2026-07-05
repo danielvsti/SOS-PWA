@@ -2331,6 +2331,8 @@ body {
 }
 
 .container:has(#activePanel:not([hidden])) .neighbor-app-header {
+  position: relative;
+  top: auto;
   min-height: 48px;
   margin-bottom: 6px;
   padding: 5px 14px;
