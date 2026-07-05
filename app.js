@@ -1191,6 +1191,12 @@ function showActiveAlert() {
   confirmButton.disabled = false;
   backButton.disabled = false;
   updateTicketLabels();
+
+  // Guardia de navegación: si el modal de texto no está abierto,
+  // el seguimiento jamás debe quedar con body.modal-open porque bloquea scroll.
+  if (!textPanel || textPanel.hidden) {
+    document.body.classList.remove("modal-open");
+  }
 }
 
 function setSendingState(isSending) {
@@ -1829,18 +1835,30 @@ function blobToDataUrl(blob) {
 
 function openTextMessageModal() {
   if (!requireTicket()) return;
+  if (!textPanel) return;
+
   textPanel.hidden = false;
   textPanel.classList.add("is-open");
+  textPanel.removeAttribute("aria-hidden");
+  textPanel.style.removeProperty("display");
   document.body.classList.add("modal-open");
+
   setTimeout(() => textMessage?.focus(), 80);
 }
 
 function closeTextMessageModal() {
-  if (!textPanel) return;
-  closeTextMessageModal();
+  if (!textPanel) {
+    document.body.classList.remove("modal-open");
+    return;
+  }
+
+  textPanel.hidden = true;
   textPanel.classList.remove("is-open");
+  textPanel.setAttribute("aria-hidden", "true");
+  textPanel.style.removeProperty("display");
   document.body.classList.remove("modal-open");
 }
+
 
 async function sendTextMessage() {
   if (!requireTicket()) return;

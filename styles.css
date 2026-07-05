@@ -2131,3 +2131,73 @@ body {
   padding-bottom: max(48px, env(safe-area-inset-bottom, 0px)) !important;
 }
 /* --- END RECOVERY: scroll normal App Vecino --- */
+
+/* --- FIX: scroll guard cuando modal de texto está cerrado --- */
+/*
+  body.modal-open bloquea el scroll mientras el popup de mensaje está abierto.
+  Si por cualquier motivo la clase queda pegada con #textPanel hidden,
+  se recupera el scroll del seguimiento.
+*/
+@supports selector(body:has(#textPanel)) {
+  body.modal-open:has(#textPanel[hidden]) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  body.modal-open:has(#activePanel:not([hidden])):has(#textPanel[hidden]) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+}
+/* --- END FIX: scroll guard cuando modal de texto está cerrado --- */
+
+/* --- HOTFIX: seguimiento con scroll interno seguro --- */
+/*
+  Contexto:
+  Hubo iteraciones de layout que dejaron el scroll global inestable.
+  Este bloque NO rediseña la app. Solo garantiza que, cuando la pantalla
+  de seguimiento (#activePanel) esté visible, su contenido pueda desplazarse.
+
+  Importante:
+  - No toca app.js.
+  - No usa body overflow hidden global para toda la app.
+  - Solo aplica cuando #activePanel está visible.
+  - Es provisorio hasta que UIX haga el rediseño definitivo.
+*/
+@supports selector(body:has(#activePanel:not([hidden]))) {
+  body:has(#activePanel:not([hidden])) {
+    overflow: hidden !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+  }
+
+  .container:has(#activePanel:not([hidden])) {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .container:has(#activePanel:not([hidden])) > .neighbor-app-header,
+  .container:has(#activePanel:not([hidden])) > #status {
+    flex: 0 0 auto !important;
+  }
+
+  #activePanel:not([hidden]) {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: contain !important;
+    padding-bottom: max(92px, env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  #activePanel:not([hidden]) > *:last-child {
+    margin-bottom: max(48px, env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+/* --- END HOTFIX: seguimiento con scroll interno seguro --- */
