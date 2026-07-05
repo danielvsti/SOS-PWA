@@ -868,7 +868,7 @@ function renderCaseProgress(progress) {
     if (voiceButton) {
       voiceButton.hidden = false;
       const span = voiceButton.querySelector("span");
-      if (span) span.textContent = "Llamar central";
+      if (span) span.textContent = "Llamar";
     }
   }
 
@@ -1039,7 +1039,7 @@ function stopRecordingUI() {
   recordingBanner.hidden = true;
   audioPanel.hidden = true;
   audioButton.classList.remove("recording-active");
-  audioButton.innerHTML = "🎙️<span>Mensaje audio</span>";
+  audioButton.innerHTML = "🎙️<span>Audio</span>";
   navigator.vibrate?.([60, 80, 60]);
 }
 
@@ -2750,6 +2750,5 @@ setTimeout(hideNeighborTechnicalInfoBox, 1000);
   window.closeTextMessageModal = closeModal;
 })();
 /* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
-
 
 
