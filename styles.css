@@ -2449,7 +2449,7 @@ html.app-standalone .container:has(#activePanel:not([hidden])) .communication-gr
   bottom: 0;
   width: min(100%, 520px) !important;
   margin: 0 !important;
-  padding: 7px 10px calc(7px + var(--ac-safe-bottom)) !important;
+  padding: 3px 8px calc(3px + var(--ac-safe-bottom)) !important;
   transform: translateX(-50%);
   border: 0;
   border-top: 1px solid #dbe3ef;
@@ -2459,10 +2459,22 @@ html.app-standalone .container:has(#activePanel:not([hidden])) .communication-gr
   isolation: isolate;
 }
 
+html.app-standalone .communication-grid .comm-button,
+html.app-standalone .communication-grid .comm-button.wide {
+  min-height: 50px !important;
+  padding: 3px 2px !important;
+  gap: 1px;
+  font-size: 20px !important;
+}
+
+html.app-standalone .communication-grid .comm-button span {
+  font-size: 10px !important;
+}
+
 html.app-standalone #cancelButton:not([hidden]) {
-  margin-bottom: calc(90px + var(--ac-safe-bottom));
+  margin-bottom: calc(62px + var(--ac-safe-bottom));
 }
 
 html.app-standalone .recording-banner {
-  bottom: calc(82px + var(--ac-safe-bottom));
+  bottom: calc(58px + var(--ac-safe-bottom));
 }
