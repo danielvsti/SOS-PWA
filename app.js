@@ -14,6 +14,7 @@ const resumeTicketId = document.getElementById("resumeTicketId");
 const resumeCaseStatus = document.getElementById("resumeCaseStatus");
 const resumeFollowupButton = document.getElementById("resumeFollowupButton");
 const categoryPanel = document.getElementById("categoryPanel");
+const categoryFeedback = document.getElementById("categoryFeedback");
 const activePanel = document.getElementById("activePanel");
 const textPanel = document.getElementById("textPanel");
 const audioPanel = document.getElementById("audioPanel");
@@ -1175,6 +1176,11 @@ async function showCategories() {
   document
     .querySelectorAll(".emergency-option")
     .forEach(option => option.classList.remove("active"));
+  if (categoryFeedback) {
+    categoryFeedback.hidden = true;
+    categoryFeedback.textContent = "";
+    categoryFeedback.removeAttribute("data-tone");
+  }
   statusLabel.textContent = "Toca una categoría para enviar la alerta";
 }
 
@@ -1259,12 +1265,20 @@ async function sendSOS() {
   setSendingState(true);
   statusLabel.textContent = "Obteniendo ubicación...";
   gpsStatus.textContent = "Buscando...";
+  if (categoryFeedback) {
+    categoryFeedback.hidden = false;
+    categoryFeedback.dataset.tone = "progress";
+    categoryFeedback.textContent = "Obteniendo tu ubicación para enviar la alerta…";
+  }
 
   try {
     const position = await getCurrentPosition();
 
     gpsStatus.textContent = "OK";
     statusLabel.textContent = "Enviando alerta...";
+    if (categoryFeedback) {
+      categoryFeedback.textContent = "Enviando alerta a la central…";
+    }
 
     const payload = {
       user_id: userId,
@@ -1323,7 +1337,13 @@ async function sendSOS() {
     console.error(error);
     gpsStatus.textContent = "ERROR";
     statusLabel.textContent = "No se pudo enviar la alerta";
-    showCategories();
+    if (categoryFeedback) {
+      categoryFeedback.hidden = false;
+      categoryFeedback.dataset.tone = "error";
+      categoryFeedback.textContent =
+        "No pudimos enviar la alerta. Activa la ubicación, revisa tu conexión y toca nuevamente la categoría para reintentar.";
+    }
+    alert("No pudimos enviar la alerta. Activa la ubicación, revisa tu conexión y vuelve a intentarlo.");
   } finally {
     setSendingState(false);
   }
@@ -2717,7 +2737,6 @@ setTimeout(hideNeighborTechnicalInfoBox, 1000);
   window.closeTextMessageModal = closeModal;
 })();
 /* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
-
 
 
 
