@@ -2204,6 +2204,10 @@ function primeRingbackAudio() {
   }
 }
 
+// iOS solo permite iniciar audio después de una interacción del usuario.
+// Conservamos este contexto preparado para futuras llamadas entrantes.
+document.addEventListener("pointerdown", primeRingbackAudio, { once: true, passive: true });
+
 function playRingbackBurst() {
   const ctx = secureVoice.ringbackContext;
   if (!ctx || ctx.state === "closed") return;
@@ -2448,9 +2452,8 @@ function neighborIncomingVoiceSession(sessions = []) {
   return (sessions || []).find((session) => {
     if (!session || !activeVoiceStatus(session.status)) return false;
     const requester = String(session.requested_by || "").toUpperCase();
-    const target = String(session.target_type || "").toUpperCase();
     if (requester === "NEIGHBOR") return false;
-    if (requester === "RESOLVER") return target === "RESOLVER" && Boolean(currentResolverName);
+    if (requester === "RESOLVER") return true;
     return requester === "OPERATOR" || requester === "CENTRAL";
   }) || null;
 }
@@ -2461,10 +2464,14 @@ function prepareIncomingSecureVoiceSession(session) {
   if (nextKey && nextKey === voiceSessionKey(secureVoice.session)) return;
   if (secureVoice.session && !VOICE_CALL_TERMINAL_STATES.has(secureVoice.state)) return;
 
+  const preparedAudioContext = secureVoice.ringbackContext?.state !== "closed"
+    ? secureVoice.ringbackContext
+    : null;
   secureVoice = createSecureVoiceState();
+  secureVoice.ringbackContext = preparedAudioContext;
   secureVoice.session = session;
   secureVoice.direction = "incoming";
-  playNeighborRing();
+  startRingback();
   setVoiceCallState(VOICE_CALL_STATES.RINGING, {
     title: "Llamada entrante",
     message: "La municipalidad quiere comunicarse contigo por tu emergencia."
