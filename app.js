@@ -144,6 +144,7 @@ let recordingTimerInterval = null;
 let recordingStartedAt = null;
 let activeIncomingCall = null;
 let secureVoice = createSecureVoiceState();
+let persistentRingbackContext = null;
 let handledCallActionIds = JSON.parse(localStorage.getItem("handled_call_action_ids") || "[]");
 let pendingOtpPhone = localStorage.getItem("pending_otp_phone") || null;
 let pendingOtpPurpose = localStorage.getItem("pending_otp_purpose") || "LOGIN";
@@ -2194,11 +2195,16 @@ function getVoiceWebrtcPayload(voiceSession) {
 
 function primeRingbackAudio() {
   try {
-    if (secureVoice.ringbackContext) return;
+    if (persistentRingbackContext?.state !== "closed") {
+      secureVoice.ringbackContext = persistentRingbackContext;
+      persistentRingbackContext.resume?.().catch(() => null);
+      return;
+    }
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
-    secureVoice.ringbackContext = new AudioContext();
-    secureVoice.ringbackContext.resume?.().catch(() => null);
+    persistentRingbackContext = new AudioContext();
+    secureVoice.ringbackContext = persistentRingbackContext;
+    persistentRingbackContext.resume?.().catch(() => null);
   } catch (error) {
     console.warn("No se pudo preparar el tono de llamada", error);
   }
@@ -2240,9 +2246,7 @@ function startRingback() {
 function stopRingback() {
   clearInterval(secureVoice.ringbackInterval);
   secureVoice.ringbackInterval = null;
-  const context = secureVoice.ringbackContext;
-  secureVoice.ringbackContext = null;
-  try { context?.close?.().catch(() => null); } catch {}
+  secureVoice.ringbackContext = persistentRingbackContext;
 }
 
 function playNeighborRing() {
@@ -2464,11 +2468,8 @@ function prepareIncomingSecureVoiceSession(session) {
   if (nextKey && nextKey === voiceSessionKey(secureVoice.session)) return;
   if (secureVoice.session && !VOICE_CALL_TERMINAL_STATES.has(secureVoice.state)) return;
 
-  const preparedAudioContext = secureVoice.ringbackContext?.state !== "closed"
-    ? secureVoice.ringbackContext
-    : null;
   secureVoice = createSecureVoiceState();
-  secureVoice.ringbackContext = preparedAudioContext;
+  secureVoice.ringbackContext = persistentRingbackContext;
   secureVoice.session = session;
   secureVoice.direction = "incoming";
   startRingback();
@@ -2480,7 +2481,8 @@ function prepareIncomingSecureVoiceSession(session) {
 }
 
 async function ensureNeighborVoiceCredentials() {
-  if (getVoiceWebrtcPayload(secureVoice.session)) return secureVoice.session;
+  const currentWebrtc = getVoiceWebrtcPayload(secureVoice.session);
+  if (currentWebrtc && (currentWebrtc.ha1 || currentWebrtc.password)) return secureVoice.session;
   const sessionId = voiceSessionKey(secureVoice.session);
   if (!currentEventId || !sessionId) return secureVoice.session;
 
@@ -2830,6 +2832,7 @@ voiceButton?.addEventListener("click", () => requestCall("voice"));
 resolverSecureCallButton?.addEventListener("click", () => requestCall("voice"));
 voiceConnectButton?.addEventListener("click", async () => {
   try {
+    if (secureVoice.direction === "incoming") secureVoice.direction = "answered-incoming";
     await connectSecureVoice();
   } catch (error) {
     console.error(error);
