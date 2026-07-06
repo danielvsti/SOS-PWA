@@ -144,7 +144,6 @@ let recordingTimerInterval = null;
 let recordingStartedAt = null;
 let activeIncomingCall = null;
 let secureVoice = createSecureVoiceState();
-let persistentRingbackContext = null;
 let handledCallActionIds = JSON.parse(localStorage.getItem("handled_call_action_ids") || "[]");
 let pendingOtpPhone = localStorage.getItem("pending_otp_phone") || null;
 let pendingOtpPurpose = localStorage.getItem("pending_otp_purpose") || "LOGIN";
@@ -2129,7 +2128,7 @@ function createSecureVoiceState() {
     state: "IDLE",
     direction: null,
     muted: false,
-    ringbackContext: null,
+    ringbackContexts: new Set(),
     ringbackInterval: null,
     statusPollTimer: null,
     noAnswerTimer: null,
@@ -2193,52 +2192,40 @@ function getVoiceWebrtcPayload(voiceSession) {
   return voiceSession.webrtc || voiceSession.party_a_webrtc || null;
 }
 
-function primeRingbackAudio() {
+function playRingbackBurst() {
   try {
-    if (persistentRingbackContext?.state !== "closed") {
-      secureVoice.ringbackContext = persistentRingbackContext;
-      persistentRingbackContext.resume?.().catch(() => null);
-      return;
-    }
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
-    persistentRingbackContext = new AudioContext();
-    secureVoice.ringbackContext = persistentRingbackContext;
-    persistentRingbackContext.resume?.().catch(() => null);
+    const contexts = secureVoice.ringbackContexts;
+    const ctx = new AudioContext();
+    contexts.add(ctx);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + 0.03);
+    gain.gain.setValueAtTime(0.22, ctx.currentTime + 0.72);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.82);
+    gain.connect(ctx.destination);
+
+    [440, 480].forEach((frequency) => {
+      const oscillator = ctx.createOscillator();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+      oscillator.connect(gain);
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.85);
+    });
+    setTimeout(() => {
+      contexts.delete(ctx);
+      ctx.close().catch(() => null);
+    }, 1_100);
   } catch (error) {
-    console.warn("No se pudo preparar el tono de llamada", error);
+    console.warn("No se pudo reproducir el tono de llamada", error);
   }
-}
-
-// iOS solo permite iniciar audio después de una interacción del usuario.
-// Conservamos este contexto preparado para futuras llamadas entrantes.
-document.addEventListener("pointerdown", primeRingbackAudio, { once: true, passive: true });
-
-function playRingbackBurst() {
-  const ctx = secureVoice.ringbackContext;
-  if (!ctx || ctx.state === "closed") return;
-  ctx.resume?.().catch(() => null);
-
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.03);
-  gain.gain.setValueAtTime(0.12, ctx.currentTime + 0.72);
-  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.82);
-  gain.connect(ctx.destination);
-
-  [440, 480].forEach((frequency) => {
-    const oscillator = ctx.createOscillator();
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-    oscillator.connect(gain);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.85);
-  });
 }
 
 function startRingback() {
   if (secureVoice.ringbackInterval) return;
-  primeRingbackAudio();
   playRingbackBurst();
   secureVoice.ringbackInterval = setInterval(playRingbackBurst, 3_000);
 }
@@ -2246,12 +2233,14 @@ function startRingback() {
 function stopRingback() {
   clearInterval(secureVoice.ringbackInterval);
   secureVoice.ringbackInterval = null;
-  secureVoice.ringbackContext = persistentRingbackContext;
+  secureVoice.ringbackContexts.forEach((context) => {
+    try { context.close().catch(() => null); } catch {}
+  });
+  secureVoice.ringbackContexts.clear();
 }
 
 function playNeighborRing() {
   try { navigator.vibrate?.([250, 120, 250]); } catch {}
-  primeRingbackAudio();
   playRingbackBurst();
 }
 
@@ -2469,7 +2458,6 @@ function prepareIncomingSecureVoiceSession(session) {
   if (secureVoice.session && !VOICE_CALL_TERMINAL_STATES.has(secureVoice.state)) return;
 
   secureVoice = createSecureVoiceState();
-  secureVoice.ringbackContext = persistentRingbackContext;
   secureVoice.session = session;
   secureVoice.direction = "incoming";
   startRingback();
@@ -2747,7 +2735,6 @@ async function requestCall(mode = "voice") {
 
   secureVoice = createSecureVoiceState();
   secureVoice.direction = "outgoing";
-  primeRingbackAudio();
   setVoiceCallState(VOICE_CALL_STATES.REQUESTING_CALL, {
     title: "Conectando llamada…",
     message: "Te estamos conectando para que puedas entregar más detalles de tu emergencia."
