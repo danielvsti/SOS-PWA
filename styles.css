@@ -2479,6 +2479,46 @@ html.app-standalone .recording-banner {
   bottom: calc(58px + var(--ac-safe-bottom));
 }
 
+/* Safari móvil: el dock conserva el mismo comportamiento fijo que la app instalada. */
+@media (max-width: 520px) {
+  html:not(.app-standalone) .container:has(#activePanel:not([hidden])) .communication-grid {
+    position: fixed;
+    z-index: 100;
+    left: 50%;
+    bottom: 0;
+    width: min(100%, 520px) !important;
+    margin: 0 !important;
+    padding: 3px 8px calc(3px + var(--ac-safe-bottom)) !important;
+    transform: translateX(-50%);
+    border: 0;
+    border-top: 1px solid #dbe3ef;
+    border-radius: 0;
+    background: #fff !important;
+    box-shadow: 0 -6px 18px rgba(15, 23, 42, .12);
+    isolation: isolate;
+  }
+
+  html:not(.app-standalone) .communication-grid .comm-button,
+  html:not(.app-standalone) .communication-grid .comm-button.wide {
+    min-height: 50px !important;
+    padding: 3px 2px !important;
+    gap: 1px;
+    font-size: 20px !important;
+  }
+
+  html:not(.app-standalone) .communication-grid .comm-button span {
+    font-size: 10px !important;
+  }
+
+  html:not(.app-standalone) #cancelButton:not([hidden]) {
+    margin-bottom: calc(62px + var(--ac-safe-bottom));
+  }
+
+  html:not(.app-standalone) .recording-banner {
+    bottom: calc(58px + var(--ac-safe-bottom));
+  }
+}
+
 /* Llamada de emergencia: overlay contenido, sin alterar el footer ni el layout. */
 body.voice-call-open {
   overflow: hidden;

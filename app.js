@@ -835,7 +835,8 @@ function renderCaseProgress(progress) {
   if (!caseProgressTitle || !progress) return;
 
   const state = progress.ticket_state || "ACTIVE";
-  if (progress.alert_type || progress.emergency_type) setCurrentAlertType(progress.alert_type || progress.emergency_type);
+  const progressAlertType = progress.ticket_alert_type || progress.alert_type || progress.emergency_type;
+  if (progressAlertType) setCurrentAlertType(progressAlertType);
   caseProgressIcon.textContent = stateToProgressIcon(state);
   caseProgressTitle.textContent = progress.headline || "Central informada";
   caseProgressDetail.textContent = progress.detail || "La central ya recibió tu emergencia.";
@@ -1109,7 +1110,9 @@ async function recoverActiveCase() {
     }
 
     eventIdLabel.textContent = currentEventId;
-    if (data.event.alert_type || data.event.emergency_type) setCurrentAlertType(data.event.alert_type || data.event.emergency_type);
+    const recoveredAlertType =
+      data.event.ticket_alert_type || data.event.alert_type || data.event.emergency_type;
+    if (recoveredAlertType) setCurrentAlertType(recoveredAlertType);
     eventStatus.textContent = data.effective_state || data.event.effective_state || data.event.state || "ACTIVO";
     updateTicketLabels();
 
@@ -1806,7 +1809,9 @@ async function refreshStatus() {
       ? ticketState
       : (event.effective_state || data?.effective_state || event.state || "DESCONOCIDO");
 
-    if (event.alert_type || event.emergency_type) setCurrentAlertType(event.alert_type || event.emergency_type);
+    const refreshedAlertType =
+      event.ticket_alert_type || event.alert_type || event.emergency_type;
+    if (refreshedAlertType) setCurrentAlertType(refreshedAlertType);
 
     if (event.ticket_id && !currentTicketId) {
       currentTicketId = event.ticket_id;
@@ -2561,12 +2566,13 @@ async function connectSecureVoice() {
           message: "Te estamos conectando para que puedas entregar más detalles de tu emergencia."
         }),
         confirmed: () => {
-          stopRingback();
-          setVoiceCallState(VOICE_CALL_STATES.CONNECTED, {
-            title: "Llamada conectada",
-            message: "Puedes explicar lo que está ocurriendo."
+          // Esta confirmación solo indica que el anexo del vecino entró al bridge.
+          // La llamada se considera contestada únicamente cuando backend/WA-Center
+          // confirman que ambas partes están conectadas.
+          setVoiceCallState(VOICE_CALL_STATES.RINGING, {
+            title: "Llamando…",
+            message: "Esperando que la municipalidad conteste."
           });
-          startConnectedCallTimer();
         },
         ended: () => {
           void cleanupSecureVoice({
