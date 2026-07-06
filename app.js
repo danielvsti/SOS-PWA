@@ -144,6 +144,9 @@ let recordingTimerInterval = null;
 let recordingStartedAt = null;
 let activeIncomingCall = null;
 let secureVoice = createSecureVoiceState();
+let persistentCallToneAudio = null;
+let persistentCallToneUrl = null;
+let callToneUnlocked = false;
 let handledCallActionIds = JSON.parse(localStorage.getItem("handled_call_action_ids") || "[]");
 let pendingOtpPhone = localStorage.getItem("pending_otp_phone") || null;
 let pendingOtpPurpose = localStorage.getItem("pending_otp_purpose") || "LOGIN";
@@ -2130,6 +2133,7 @@ function createSecureVoiceState() {
     muted: false,
     ringbackContexts: new Set(),
     ringbackInterval: null,
+    ringbackAudioActive: false,
     statusPollTimer: null,
     noAnswerTimer: null,
     durationTimer: null,
@@ -2224,15 +2228,96 @@ function playRingbackBurst() {
   }
 }
 
+function createCallToneUrl() {
+  if (persistentCallToneUrl) return persistentCallToneUrl;
+  const sampleRate = 8000;
+  const durationSeconds = 3;
+  const toneSeconds = 0.9;
+  const sampleCount = sampleRate * durationSeconds;
+  const buffer = new ArrayBuffer(44 + sampleCount * 2);
+  const view = new DataView(buffer);
+  const writeText = (offset, text) => {
+    for (let index = 0; index < text.length; index += 1) {
+      view.setUint8(offset + index, text.charCodeAt(index));
+    }
+  };
+  writeText(0, "RIFF");
+  view.setUint32(4, 36 + sampleCount * 2, true);
+  writeText(8, "WAVE");
+  writeText(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeText(36, "data");
+  view.setUint32(40, sampleCount * 2, true);
+
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const time = sample / sampleRate;
+    let value = 0;
+    if (time < toneSeconds) {
+      const fade = Math.min(1, time / 0.03, (toneSeconds - time) / 0.06);
+      value = (Math.sin(2 * Math.PI * 440 * time) + Math.sin(2 * Math.PI * 480 * time)) * 0.16 * fade;
+    }
+    view.setInt16(44 + sample * 2, Math.max(-1, Math.min(1, value)) * 32767, true);
+  }
+
+  persistentCallToneUrl = URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+  return persistentCallToneUrl;
+}
+
+function getPersistentCallToneAudio() {
+  if (persistentCallToneAudio) return persistentCallToneAudio;
+  persistentCallToneAudio = new Audio(createCallToneUrl());
+  persistentCallToneAudio.loop = true;
+  persistentCallToneAudio.preload = "auto";
+  persistentCallToneAudio.playsInline = true;
+  return persistentCallToneAudio;
+}
+
+async function unlockPersistentCallTone() {
+  if (callToneUnlocked) return;
+  const audio = getPersistentCallToneAudio();
+  const previousVolume = audio.volume;
+  audio.volume = 0;
+  try {
+    await audio.play();
+    audio.pause();
+    audio.currentTime = 0;
+    callToneUnlocked = true;
+    document.removeEventListener("pointerdown", unlockPersistentCallTone);
+  } catch (_) {
+    // iOS permitirá reintentar en la siguiente interacción del usuario.
+  } finally {
+    audio.volume = previousVolume || 0.85;
+  }
+}
+
+document.addEventListener("pointerdown", unlockPersistentCallTone, { passive: true });
+
 function startRingback() {
-  if (secureVoice.ringbackInterval) return;
-  playRingbackBurst();
-  secureVoice.ringbackInterval = setInterval(playRingbackBurst, 3_000);
+  if (secureVoice.ringbackAudioActive) return;
+  secureVoice.ringbackAudioActive = true;
+  const audio = getPersistentCallToneAudio();
+  audio.currentTime = 0;
+  audio.volume = 0.85;
+  audio.play().catch(() => {
+    playRingbackBurst();
+    secureVoice.ringbackInterval = setInterval(playRingbackBurst, 3_000);
+  });
 }
 
 function stopRingback() {
+  secureVoice.ringbackAudioActive = false;
   clearInterval(secureVoice.ringbackInterval);
   secureVoice.ringbackInterval = null;
+  if (persistentCallToneAudio) {
+    persistentCallToneAudio.pause();
+    persistentCallToneAudio.currentTime = 0;
+  }
   secureVoice.ringbackContexts.forEach((context) => {
     try { context.close().catch(() => null); } catch {}
   });
