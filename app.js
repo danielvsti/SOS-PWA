@@ -2134,6 +2134,7 @@ function createSecureVoiceState() {
     noAnswerTimer: null,
     durationTimer: null,
     connectedAt: null,
+    connectedReported: false,
     cleanupPromise: null,
     backendFinalized: false,
     requestController: null
@@ -2292,6 +2293,43 @@ function startConnectedCallTimer() {
   updateVoiceCallTimer();
   clearInterval(secureVoice.durationTimer);
   secureVoice.durationTimer = setInterval(updateVoiceCallTimer, 1_000);
+}
+
+function markSecureVoiceConnected() {
+  if (secureVoice.state === VOICE_CALL_STATES.CONNECTED) return;
+  stopRingback();
+  setVoiceCallState(VOICE_CALL_STATES.CONNECTED, {
+    title: "Llamada conectada",
+    message: "Puedes explicar lo que está ocurriendo."
+  });
+  startConnectedCallTimer();
+}
+
+async function reportNeighborVoiceConnected() {
+  const sessionId = voiceSessionKey(secureVoice.session);
+  if (!currentEventId || !sessionId || secureVoice.connectedReported) return;
+  secureVoice.connectedReported = true;
+
+  try {
+    const response = await fetch(
+      `${API}/public/mobile/events/${currentEventId}/voice/sessions/${encodeURIComponent(sessionId)}/connected`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId })
+      }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.status === "error") {
+      throw new Error(data.message || "No fue posible confirmar la entrada al canal");
+    }
+    if (String(data.voice_session?.status || "").toUpperCase() === "CONNECTED") {
+      markSecureVoiceConnected();
+    }
+  } catch (error) {
+    secureVoice.connectedReported = false;
+    console.warn("No se pudo confirmar la entrada del vecino al canal", error);
+  }
 }
 
 async function notifyVoiceBackendEnded(reason) {
@@ -2573,6 +2611,7 @@ async function connectSecureVoice() {
             title: "Llamando…",
             message: "Esperando que la municipalidad conteste."
           });
+          void reportNeighborVoiceConnected();
         },
         ended: () => {
           void cleanupSecureVoice({
@@ -2650,12 +2689,7 @@ async function pollSecureVoiceStatus() {
 
     const backendStatus = String(data.voice_session?.status || "").toUpperCase();
     if (backendStatus === "CONNECTED" && secureVoice.state !== VOICE_CALL_STATES.CONNECTED) {
-      stopRingback();
-      setVoiceCallState(VOICE_CALL_STATES.CONNECTED, {
-        title: "Llamada conectada",
-        message: "Puedes explicar lo que está ocurriendo."
-      });
-      startConnectedCallTimer();
+      markSecureVoiceConnected();
       return;
     }
     if (["ENDED", "FAILED", "NO_ANSWER", "REJECTED", "EXPIRED"].includes(backendStatus)) {
