@@ -2604,6 +2604,13 @@ body.voice-call-open {
   border-radius: 16px;
 }
 
+.voice-answer-button {
+  background: #16a34a;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .voice-hangup-button {
   background: #dc2626;
   color: #fff;

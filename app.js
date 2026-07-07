@@ -2187,6 +2187,7 @@ function setVoiceCallState(state, options = {}) {
   if (voiceHangupButton) {
     voiceHangupButton.hidden = terminal;
     voiceHangupButton.disabled = state === VOICE_CALL_STATES.ENDING;
+    voiceHangupButton.textContent = incomingRinging ? "Rechazar" : "Colgar";
   }
   if (voiceCallTimer) voiceCallTimer.hidden = !connected;
 }
