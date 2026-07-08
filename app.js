@@ -1,6 +1,5 @@
 const SOS_CONFIG = window.SOS_CONFIG || {};
 const API = SOS_CONFIG.API_BASE || "https://sos.vsti.cl";
-const CONTROL_CENTER_CODE = "CC-VINA";
 const IS_APP_STANDALONE =
   window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
   window.navigator.standalone === true ||
@@ -253,6 +252,10 @@ function getNeighborName() {
 
 function getNeighborPhone() {
   return neighborProfile?.phone || null;
+}
+
+function getNeighborControlCenterCode() {
+  return neighborProfile?.control_center_code || null;
 }
 
 function isNeighborRegistered() {
@@ -563,8 +566,21 @@ async function registerNeighbor() {
   statusLabel.textContent = "Registrando y enviando código...";
 
   try {
+    if (!homeLatitude || !homeLongitude) {
+      statusLabel.textContent = "Obteniendo ubicación GPS para asignar tu Centro de Control...";
+      homeLocationStatus.textContent = "Obteniendo GPS del domicilio...";
+      const position = await getCurrentPosition();
+      homeLatitude = String(position.coords.latitude);
+      homeLongitude = String(position.coords.longitude);
+      homeAccuracy = String(Math.round(position.coords.accuracy));
+
+      localStorage.setItem("neighbor_home_latitude", homeLatitude);
+      localStorage.setItem("neighbor_home_longitude", homeLongitude);
+      localStorage.setItem("neighbor_home_accuracy", homeAccuracy);
+      homeLocationStatus.textContent = `GPS domicilio OK · precisión ${homeAccuracy} m`;
+    }
+
     const payload = {
-      control_center_code: CONTROL_CENTER_CODE,
       full_name: fullName,
       rut: regRut.value.trim() || null,
       phone,
@@ -587,7 +603,8 @@ async function registerNeighbor() {
       throw new Error(data.message || "No se pudo registrar");
     }
 
-    statusLabel.textContent = "Registro recibido. Valida el código.";
+    const assignedCenter = data.assignment?.control_center_name || data.user?.control_center_name || "tu Centro de Control";
+    statusLabel.textContent = `Registro recibido en ${assignedCenter}. Valida el código.`;
     showOtp({
       phone,
       purpose: "REGISTER",
@@ -597,7 +614,7 @@ async function registerNeighbor() {
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo registrar el vecino";
-    alert(error.message || "No se pudo registrar el vecino");
+    alert(error.message || "No se pudo registrar. Activa la ubicación GPS y vuelve a intentarlo.");
   } finally {
     registerButton.disabled = false;
   }
@@ -1303,7 +1320,7 @@ async function sendSOS() {
       name: getNeighborName(),
       phone: getNeighborPhone(),
       source: "mobile_pwa",
-      control_center_code: CONTROL_CENTER_CODE,
+      control_center_code: getNeighborControlCenterCode(),
       alert_type: selectedAlertType,
       title: alertDefinitions[selectedAlertType].title,
       description: "Alerta enviada desde PWA SOS Municipal",
@@ -1390,7 +1407,7 @@ async function sendMobileSOSPayload({ alert_type, title, priority = 1, descripti
       name: getNeighborName(),
       phone: getNeighborPhone(),
       source,
-      control_center_code: CONTROL_CENTER_CODE,
+      control_center_code: getNeighborControlCenterCode(),
       alert_type,
       title,
       description,
@@ -2954,7 +2971,7 @@ function openAppSettings() {
   const accountName = profile?.name || profile?.full_name || "Vecino registrado";
   const accountPhone = profile?.phone || "—";
   const accountStatus = profile?.validation_status || profile?.status || "PROVISIONAL_ACTIVE";
-  const accountCenter = profile?.control_center_code || CONTROL_CENTER_CODE || "CC-VINA";
+  const accountCenter = profile?.control_center_code || "Asignado por GPS";
   document.getElementById("settingsAccountName").textContent = accountName;
   document.getElementById("settingsAccountMeta").textContent = `${accountPhone} · ${accountStatus}`;
   document.getElementById("settingsNeighborName").textContent = accountName;
