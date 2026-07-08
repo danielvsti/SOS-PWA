@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Alerta Comunal</title>
-  <meta name="app-version" content="v27.6-compact-native-dock">
+  <meta name="app-version" content="v28.8-call-button-semantics">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=27.6-compact-native-dock">
+  <link rel="stylesheet" href="styles.css?v=28.8-call-button-semantics">
   <meta name="theme-color" content="#dc2626">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -423,18 +423,19 @@
         </button>
       </div>
 
-      <div id="voiceSessionPanel" class="voice-session-panel" hidden>
-        <div class="voice-session-head">
-          <div>
-            <strong>📞 Llamada segura</strong>
-            <p id="voiceSessionStatus">Llamada segura lista.</p>
+      <div id="voiceSessionPanel" class="voice-session-panel" hidden role="dialog" aria-modal="true" aria-labelledby="voiceSessionTitle">
+        <div class="voice-call-card">
+          <div class="voice-call-icon" aria-hidden="true">☎️</div>
+          <h2 id="voiceSessionTitle">Conectando llamada…</h2>
+          <p id="voiceSessionStatus">Te estamos conectando para que puedas entregar más detalles de tu emergencia.</p>
+          <div id="voiceCallTimer" class="voice-call-timer" hidden>00:00</div>
+          <div class="voice-session-actions">
+            <button id="voiceConnectButton" class="voice-answer-button compact" type="button" hidden>Contestar</button>
+            <button id="voiceMuteButton" class="secondary-action compact" type="button" hidden>🎙️ Silenciar</button>
+            <button id="voiceHangupButton" class="voice-hangup-button compact" type="button">Colgar</button>
           </div>
+          <audio id="voiceRemoteAudio" autoplay playsinline></audio>
         </div>
-        <div class="voice-session-actions">
-          <button id="voiceConnectButton" class="primary-action compact" type="button">Entrar a llamada</button>
-          <button id="voiceHangupButton" class="secondary-action compact" type="button" disabled>Colgar</button>
-        </div>
-        <audio id="voiceRemoteAudio" autoplay playsinline></audio>
       </div>
 
       <div class="followup-card">
@@ -491,6 +492,6 @@
       <div>Evento: <span id="eventId">-</span></div>
     </section>
   </main>
-  <script src="app.js?v=27.6-compact-native-dock"></script>
+  <script src="app.js?v=28.8-call-button-semantics"></script>
 </body>
 </html>
