@@ -1,6 +1,9 @@
 const SOS_CONFIG = window.SOS_CONFIG || {};
 const API = SOS_CONFIG.API_BASE || "https://sos.vsti.cl";
 const NEIGHBOR_TOKEN_KEY = "sos_neighbor_session_token";
+const QR_CODE = String(new URLSearchParams(location.search).get("qr") || "").trim();
+const QR_VISITOR_KEY = "sos_qr_visitor_token";
+let qrContext = JSON.parse(sessionStorage.getItem("sos_qr_context") || "null");
 const nativeFetch = window.fetch.bind(window);
 window.fetch = (input, options = {}) => {
   const url = typeof input === "string" ? input : input?.url || "";
@@ -16,6 +19,50 @@ const IS_APP_STANDALONE =
   Boolean(window.Capacitor?.isNativePlatform?.());
 
 document.documentElement.classList.toggle("app-standalone", IS_APP_STANDALONE);
+
+function qrVisitorToken() {
+  let token = localStorage.getItem(QR_VISITOR_KEY);
+  if (!token) {
+    token = globalThis.crypto?.randomUUID?.() || `visitor-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(QR_VISITOR_KEY, token);
+  }
+  return token;
+}
+
+function showQrAccessBanner(point) {
+  if (!point) return;
+  let banner = document.getElementById("qrAccessBanner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "qrAccessBanner";
+    banner.style.cssText = "position:sticky;top:0;z-index:3000;margin:0 auto 10px;max-width:760px;padding:11px 16px;border-radius:0 0 16px 16px;background:#e0f2fe;color:#075985;text-align:center;font-weight:800;box-shadow:0 8px 24px rgba(15,23,42,.12)";
+    document.body.prepend(banner);
+  }
+  banner.textContent = `Acceso QR municipal · ${point.name}. La emergencia se ubicará con el GPS actual de tu teléfono.`;
+}
+
+async function registerQrAccess() {
+  if (!QR_CODE || qrContext?.code === QR_CODE) {
+    if (qrContext?.qr_point) showQrAccessBanner(qrContext.qr_point);
+    return qrContext;
+  }
+  try {
+    const response = await nativeFetch(`${API}/public/qr/${encodeURIComponent(QR_CODE)}/visit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visit_token: qrVisitorToken(), referrer: document.referrer || null })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.status !== "ok") throw new Error(data.message || "Punto QR no disponible");
+    qrContext = { code: QR_CODE, visit_id: data.visit_id, qr_point: data.qr_point };
+    sessionStorage.setItem("sos_qr_context", JSON.stringify(qrContext));
+    showQrAccessBanner(data.qr_point);
+    return qrContext;
+  } catch (error) {
+    console.warn("No se pudo registrar acceso QR", error);
+    return null;
+  }
+}
 
 let userId = localStorage.getItem("user_id");
 let neighborProfile = JSON.parse(localStorage.getItem("neighbor_profile") || "null");
@@ -1346,7 +1393,8 @@ async function sendSOS() {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
       accuracy: Math.round(position.coords.accuracy),
-      battery: null
+      battery: null,
+      qr_context: qrContext ? { code: qrContext.code, visit_id: qrContext.visit_id } : null
     };
 
     accuracyLabel.textContent = payload.accuracy + " m";
@@ -1436,7 +1484,8 @@ async function sendMobileSOSPayload({ alert_type, title, priority = 1, descripti
       battery: null,
       sensor_event_type,
       confidence,
-      silent
+      silent,
+      qr_context: qrContext ? { code: qrContext.code, visit_id: qrContext.visit_id } : null
     };
 
     const res = await fetch(`${API}/public/mobile/sos`, {
@@ -3136,6 +3185,7 @@ function hideNeighborTechnicalInfoBox() {
 }
 
 window.addEventListener("DOMContentLoaded", hideNeighborTechnicalInfoBox);
+window.addEventListener("DOMContentLoaded", registerQrAccess);
 window.addEventListener("load", hideNeighborTechnicalInfoBox);
 setTimeout(hideNeighborTechnicalInfoBox, 250);
 setTimeout(hideNeighborTechnicalInfoBox, 1000);
