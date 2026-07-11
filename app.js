@@ -1,5 +1,15 @@
 const SOS_CONFIG = window.SOS_CONFIG || {};
 const API = SOS_CONFIG.API_BASE || "https://sos.vsti.cl";
+const NEIGHBOR_TOKEN_KEY = "sos_neighbor_session_token";
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, options = {}) => {
+  const url = typeof input === "string" ? input : input?.url || "";
+  const token = localStorage.getItem(NEIGHBOR_TOKEN_KEY) || "";
+  if (!token || !String(url).startsWith(API)) return nativeFetch(input, options);
+  const headers = new Headers(options.headers || (typeof input !== "string" ? input?.headers : undefined) || {});
+  if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
+  return nativeFetch(input, { ...options, headers });
+};
 const CONTROL_CENTER_CODE = "CC-VINA";
 const IS_APP_STANDALONE =
   window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
@@ -10,6 +20,12 @@ document.documentElement.classList.toggle("app-standalone", IS_APP_STANDALONE);
 
 let userId = localStorage.getItem("user_id");
 let neighborProfile = JSON.parse(localStorage.getItem("neighbor_profile") || "null");
+if (neighborProfile && !localStorage.getItem(NEIGHBOR_TOKEN_KEY)) {
+  userId = null;
+  neighborProfile = null;
+  localStorage.removeItem("user_id");
+  localStorage.removeItem("neighbor_profile");
+}
 let homeLatitude = localStorage.getItem("neighbor_home_latitude") || null;
 let homeLongitude = localStorage.getItem("neighbor_home_longitude") || null;
 let homeAccuracy = localStorage.getItem("neighbor_home_accuracy") || null;
@@ -328,6 +344,7 @@ function clearNeighborProfile() {
   userId = null;
   localStorage.removeItem("neighbor_profile");
   localStorage.removeItem("user_id");
+  localStorage.removeItem(NEIGHBOR_TOKEN_KEY);
 }
 
 function updateProfileCard() {
@@ -635,6 +652,7 @@ async function verifyOtpCode() {
       throw new Error("Este usuario no tiene perfil de vecino.");
     }
 
+    localStorage.setItem(NEIGHBOR_TOKEN_KEY, data.token);
     saveNeighborProfile(data.user);
     updateProfileCard();
     localStorage.removeItem("pending_otp_phone");
@@ -2750,5 +2768,3 @@ setTimeout(hideNeighborTechnicalInfoBox, 1000);
   window.closeTextMessageModal = closeModal;
 })();
 /* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
-
-
