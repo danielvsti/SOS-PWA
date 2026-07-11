@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Alerta Comunal</title>
-  <meta name="app-version" content="v26.3-alerta-comunal-webrtc-ready">
+  <meta name="app-version" content="v27.6-compact-native-dock">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=27.6-compact-native-dock">
   <meta name="theme-color" content="#dc2626">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -301,6 +301,7 @@
       <p class="helper-text">
         Toca una categoría para enviar la alerta de inmediato.
       </p>
+      <div id="categoryFeedback" class="category-feedback" role="status" aria-live="polite" hidden></div>
 
       <div class="emergency-grid">
         <button class="emergency-option" type="button" data-type="SOS_MANUAL">
@@ -413,12 +414,12 @@
           🎙️<span>Audio</span>
         </button>
 
-        <button id="voiceButton" class="comm-button" type="button">
-          📞<span>Llamar central</span>
+        <button id="videoUploadButton" class="comm-button" type="button">
+          📹<span>Video</span>
         </button>
 
-        <button id="videoUploadButton" class="comm-button" type="button">
-          📹<span>Grabar video</span>
+        <button id="voiceButton" class="comm-button" type="button">
+          📞<span>Llamar</span>
         </button>
       </div>
 
@@ -490,6 +491,6 @@
       <div>Evento: <span id="eventId">-</span></div>
     </section>
   </main>
-  <script src="app.js"></script>
+  <script src="app.js?v=27.6-compact-native-dock"></script>
 </body>
 </html>

@@ -1,9 +1,31 @@
 const SOS_CONFIG = window.SOS_CONFIG || {};
 const API = SOS_CONFIG.API_BASE || "https://sos.vsti.cl";
+const NEIGHBOR_TOKEN_KEY = "sos_neighbor_session_token";
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, options = {}) => {
+  const url = typeof input === "string" ? input : input?.url || "";
+  const token = localStorage.getItem(NEIGHBOR_TOKEN_KEY) || "";
+  if (!token || !String(url).startsWith(API)) return nativeFetch(input, options);
+  const headers = new Headers(options.headers || (typeof input !== "string" ? input?.headers : undefined) || {});
+  if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
+  return nativeFetch(input, { ...options, headers });
+};
 const CONTROL_CENTER_CODE = "CC-VINA";
+const IS_APP_STANDALONE =
+  window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
+  window.navigator.standalone === true ||
+  Boolean(window.Capacitor?.isNativePlatform?.());
+
+document.documentElement.classList.toggle("app-standalone", IS_APP_STANDALONE);
 
 let userId = localStorage.getItem("user_id");
 let neighborProfile = JSON.parse(localStorage.getItem("neighbor_profile") || "null");
+if (neighborProfile && !localStorage.getItem(NEIGHBOR_TOKEN_KEY)) {
+  userId = null;
+  neighborProfile = null;
+  localStorage.removeItem("user_id");
+  localStorage.removeItem("neighbor_profile");
+}
 let homeLatitude = localStorage.getItem("neighbor_home_latitude") || null;
 let homeLongitude = localStorage.getItem("neighbor_home_longitude") || null;
 let homeAccuracy = localStorage.getItem("neighbor_home_accuracy") || null;
@@ -14,6 +36,7 @@ const resumeTicketId = document.getElementById("resumeTicketId");
 const resumeCaseStatus = document.getElementById("resumeCaseStatus");
 const resumeFollowupButton = document.getElementById("resumeFollowupButton");
 const categoryPanel = document.getElementById("categoryPanel");
+const categoryFeedback = document.getElementById("categoryFeedback");
 const activePanel = document.getElementById("activePanel");
 const textPanel = document.getElementById("textPanel");
 const audioPanel = document.getElementById("audioPanel");
@@ -321,6 +344,7 @@ function clearNeighborProfile() {
   userId = null;
   localStorage.removeItem("neighbor_profile");
   localStorage.removeItem("user_id");
+  localStorage.removeItem(NEIGHBOR_TOKEN_KEY);
 }
 
 function updateProfileCard() {
@@ -628,6 +652,7 @@ async function verifyOtpCode() {
       throw new Error("Este usuario no tiene perfil de vecino.");
     }
 
+    localStorage.setItem(NEIGHBOR_TOKEN_KEY, data.token);
     saveNeighborProfile(data.user);
     updateProfileCard();
     localStorage.removeItem("pending_otp_phone");
@@ -861,7 +886,7 @@ function renderCaseProgress(progress) {
     if (voiceButton) {
       voiceButton.hidden = false;
       const span = voiceButton.querySelector("span");
-      if (span) span.textContent = "Llamar central";
+      if (span) span.textContent = "Llamar";
     }
   }
 
@@ -920,7 +945,16 @@ function formatActivityTime(value) {
 function renderCaseActivity(items = []) {
   if (!caseActivityList || !caseActivityEmpty) return;
 
-  const list = Array.isArray(items) ? items : [];
+  const list = (Array.isArray(items) ? items : [])
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const leftTime = new Date(left.item?.created_at || 0).getTime();
+      const rightTime = new Date(right.item?.created_at || 0).getTime();
+      const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
+      const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
+      return safeLeftTime - safeRightTime || left.index - right.index;
+    })
+    .map(({ item }) => item);
   caseActivityEmpty.hidden = list.length > 0;
 
   caseActivityList.innerHTML = list.map((item) => {
@@ -928,7 +962,6 @@ function renderCaseActivity(items = []) {
     const title = item.title || "Actualización enviada";
     const body = item.body || "";
     const mediaUrl = item.media_url || "";
-    const fileName = item.file_name || "";
     const mediaLink = mediaUrl
       ? `<a class="case-activity-link" href="${escapeHtml(mediaUrl)}" target="_blank" rel="noopener">Ver evidencia</a>`
       : "";
@@ -942,7 +975,6 @@ function renderCaseActivity(items = []) {
             <span>${escapeHtml(formatActivityTime(item.created_at))}</span>
           </div>
           ${body ? `<p>${escapeHtml(body)}</p>` : ""}
-          ${fileName ? `<p class="case-activity-file">${escapeHtml(fileName)}</p>` : ""}
           ${mediaLink}
         </div>
       </div>
@@ -961,7 +993,7 @@ function prependCaseActivity(item) {
   }]);
 
   if (current) {
-    caseActivityList.insertAdjacentHTML("beforeend", current);
+    caseActivityList.insertAdjacentHTML("afterbegin", current);
   }
 }
 
@@ -1025,7 +1057,7 @@ function stopRecordingUI() {
   recordingBanner.hidden = true;
   audioPanel.hidden = true;
   audioButton.classList.remove("recording-active");
-  audioButton.innerHTML = "🎙️<span>Mensaje audio</span>";
+  audioButton.innerHTML = "🎙️<span>Audio</span>";
   navigator.vibrate?.([60, 80, 60]);
 }
 
@@ -1175,6 +1207,11 @@ async function showCategories() {
   document
     .querySelectorAll(".emergency-option")
     .forEach(option => option.classList.remove("active"));
+  if (categoryFeedback) {
+    categoryFeedback.hidden = true;
+    categoryFeedback.textContent = "";
+    categoryFeedback.removeAttribute("data-tone");
+  }
   statusLabel.textContent = "Toca una categoría para enviar la alerta";
 }
 
@@ -1259,12 +1296,20 @@ async function sendSOS() {
   setSendingState(true);
   statusLabel.textContent = "Obteniendo ubicación...";
   gpsStatus.textContent = "Buscando...";
+  if (categoryFeedback) {
+    categoryFeedback.hidden = false;
+    categoryFeedback.dataset.tone = "progress";
+    categoryFeedback.textContent = "Obteniendo tu ubicación para enviar la alerta…";
+  }
 
   try {
     const position = await getCurrentPosition();
 
     gpsStatus.textContent = "OK";
     statusLabel.textContent = "Enviando alerta...";
+    if (categoryFeedback) {
+      categoryFeedback.textContent = "Enviando alerta a la central…";
+    }
 
     const payload = {
       user_id: userId,
@@ -1323,7 +1368,13 @@ async function sendSOS() {
     console.error(error);
     gpsStatus.textContent = "ERROR";
     statusLabel.textContent = "No se pudo enviar la alerta";
-    showCategories();
+    if (categoryFeedback) {
+      categoryFeedback.hidden = false;
+      categoryFeedback.dataset.tone = "error";
+      categoryFeedback.textContent =
+        "No pudimos enviar la alerta. Activa la ubicación, revisa tu conexión y toca nuevamente la categoría para reintentar.";
+    }
+    alert("No pudimos enviar la alerta. Activa la ubicación, revisa tu conexión y vuelve a intentarlo.");
   } finally {
     setSendingState(false);
   }
@@ -2717,9 +2768,3 @@ setTimeout(hideNeighborTechnicalInfoBox, 1000);
   window.closeTextMessageModal = closeModal;
 })();
 /* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
-
-
-
-
-
-
