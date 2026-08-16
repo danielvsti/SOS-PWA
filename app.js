@@ -1,5 +1,5 @@
 const SOS_CONFIG = window.SOS_CONFIG || {};
-const API = SOS_CONFIG.API_BASE || "https://sos.vsti.cl";
+const API = SOS_CONFIG.API_BASE || "https://api.queltu.com";
 const NEIGHBOR_TOKEN_KEY = "sos_neighbor_session_token";
 const QR_CODE = String(new URLSearchParams(location.search).get("qr") || "").trim();
 const QR_VISITOR_KEY = "sos_qr_visitor_token";
@@ -81,6 +81,9 @@ const resumeFollowupCard = document.getElementById("resumeFollowupCard");
 const resumeTicketId = document.getElementById("resumeTicketId");
 const resumeCaseStatus = document.getElementById("resumeCaseStatus");
 const resumeFollowupButton = document.getElementById("resumeFollowupButton");
+const workerPnrSection = document.getElementById("workerPnrSection");
+const workerPnrArea = document.getElementById("workerPnrArea");
+const workerPnrList = document.getElementById("workerPnrList");
 const categoryPanel = document.getElementById("categoryPanel");
 const categoryFeedback = document.getElementById("categoryFeedback");
 const activePanel = document.getElementById("activePanel");
@@ -881,6 +884,79 @@ function updateResumeFollowupCard(stateText = null) {
   resumeFollowupCard.hidden = false;
 }
 
+function hideWorkerPnr() {
+  if (workerPnrSection) workerPnrSection.hidden = true;
+  if (workerPnrList) workerPnrList.innerHTML = "";
+}
+
+async function openWorkerPnrDocument(documentId, documentUrl = "") {
+  if (documentUrl) {
+    window.open(documentUrl, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const preview = window.open("about:blank", "_blank", "noopener,noreferrer");
+  try {
+    const response = await fetch(`${API}/mobile/safety/pnr/${encodeURIComponent(documentId)}/content`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.message || "No fue posible abrir el documento");
+    }
+    const blobUrl = URL.createObjectURL(await response.blob());
+    if (preview) preview.location.replace(blobUrl);
+    else window.location.href = blobUrl;
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+  } catch (error) {
+    if (preview) preview.close();
+    alert(error.message || "No fue posible abrir el documento");
+  }
+}
+
+function renderWorkerPnr(data) {
+  const documents = Array.isArray(data?.documents) ? data.documents : [];
+  if (!workerPnrSection || !workerPnrList || documents.length === 0) {
+    hideWorkerPnr();
+    return;
+  }
+
+  const area = String(data?.work_area || neighborProfile?.work_area || "").trim();
+  workerPnrArea.textContent = area || "Aplicación general";
+  workerPnrList.innerHTML = documents.map((item) => `
+    <article class="worker-pnr-card">
+      <div class="worker-pnr-icon" aria-hidden="true">📘</div>
+      <div class="worker-pnr-copy">
+        <strong>${escapeHtml(item.title || item.code || "Documento PNR")}</strong>
+        <span>${escapeHtml(item.document_type || "PNR")} · v${escapeHtml(item.version || "1.0")}</span>
+        ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ""}
+      </div>
+      <button type="button" class="worker-pnr-open" data-pnr-id="${escapeHtml(item.id)}" data-pnr-url="${escapeHtml(item.document_url || "")}">Abrir</button>
+    </article>
+  `).join("");
+  workerPnrSection.hidden = false;
+  workerPnrList.querySelectorAll("[data-pnr-id]").forEach((button) => {
+    button.addEventListener("click", () => openWorkerPnrDocument(button.dataset.pnrId, button.dataset.pnrUrl));
+  });
+}
+
+async function loadWorkerPnr() {
+  if (!isNeighborRegistered() || !localStorage.getItem(NEIGHBOR_TOKEN_KEY)) {
+    hideWorkerPnr();
+    return;
+  }
+  try {
+    const response = await fetch(`${API}/mobile/safety/pnr`);
+    if (response.status === 403 || response.status === 404) {
+      hideWorkerPnr();
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || "No fue posible cargar PNR");
+    renderWorkerPnr(data);
+  } catch (error) {
+    hideWorkerPnr();
+    console.warn("[PNR] carga no disponible", error.message || error);
+  }
+}
+
 function clearCurrentCaseLocal() {
   resetSecureVoiceState();
   currentEventId = null;
@@ -1252,6 +1328,7 @@ function showHome(options = {
   confirmButton.disabled = !isNeighborAccountAllowed();
   backButton.disabled = false;
   updateResumeFollowupCard();
+  void loadWorkerPnr();
   if (!isNeighborAccountAllowed()) {
     statusLabel.textContent = "Cuenta no habilitada";
   } else {
