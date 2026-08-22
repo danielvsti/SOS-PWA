@@ -32,6 +32,10 @@ const SOS_OUTBOX_DB = "queltu-city-offline";
 const SOS_OUTBOX_STORE = "sos-outbox";
 const SOS_OUTBOX_RETENTION_MS = 72 * 60 * 60 * 1000;
 let sosOutboxSyncing = false;
+const NEIGHBOR_EVIDENCE_DB = "queltu-neighbor-evidence-offline";
+const NEIGHBOR_EVIDENCE_STORE = "ticket-evidence";
+const NEIGHBOR_EVIDENCE_RETENTION_MS = 24 * 60 * 60 * 1000;
+let neighborEvidenceSyncing = false;
 
 function openSosOutbox() {
   return new Promise((resolve, reject) => {
@@ -110,6 +114,152 @@ async function hasQueuedSos() {
   try { return (await listQueuedSosForCurrentUser()).length > 0; } catch (_) { return false; }
 }
 
+function openNeighborEvidenceOutbox() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error("IndexedDB no disponible"));
+    const request = indexedDB.open(NEIGHBOR_EVIDENCE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(NEIGHBOR_EVIDENCE_STORE)) {
+        const store = db.createObjectStore(NEIGHBOR_EVIDENCE_STORE, { keyPath: "client_action_id" });
+        store.createIndex("created_at", "created_at");
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("No se pudo abrir la cola de antecedentes"));
+  });
+}
+
+async function neighborEvidenceTransaction(mode, callback) {
+  const db = await openNeighborEvidenceOutbox();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction(NEIGHBOR_EVIDENCE_STORE, mode);
+      const store = transaction.objectStore(NEIGHBOR_EVIDENCE_STORE);
+      let result;
+      try { result = callback(store); } catch (error) { reject(error); return; }
+      transaction.oncomplete = () => resolve(result?.result ?? result);
+      transaction.onerror = () => reject(transaction.error || new Error("Error en cola de antecedentes"));
+      transaction.onabort = () => reject(transaction.error || new Error("Operación de antecedentes cancelada"));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+function newNeighborEvidenceId() {
+  return globalThis.crypto?.randomUUID?.() || `neighbor-evidence-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function listQueuedNeighborEvidence() {
+  const items = await neighborEvidenceTransaction("readonly", (store) => store.getAll());
+  const cutoff = Date.now() - NEIGHBOR_EVIDENCE_RETENTION_MS;
+  const allItems = Array.isArray(items) ? items : [];
+  const fresh = allItems.filter((item) => Number(item.created_at || 0) >= cutoff);
+  const expired = allItems.filter((item) => Number(item.created_at || 0) < cutoff);
+  await Promise.all(expired.map((item) => neighborEvidenceTransaction(
+    "readwrite",
+    (store) => store.delete(item.client_action_id)
+  )));
+  return fresh.sort((left, right) => Number(left.created_at) - Number(right.created_at));
+}
+
+async function listQueuedNeighborEvidenceForCurrentUser() {
+  const ownerId = String(userId || "");
+  if (!ownerId) return [];
+  return (await listQueuedNeighborEvidence()).filter((item) => String(item.owner_user_id || "") === ownerId);
+}
+
+async function queueNeighborEvidence(entry) {
+  const { sender_name: _discardedSenderName, ...minimizedBody } = entry.body || {};
+  const queued = {
+    ...entry,
+    body: minimizedBody,
+    client_action_id: entry.client_action_id || newNeighborEvidenceId(),
+    owner_user_id: String(userId || ""),
+    ticket_id: String(entry.ticket_id || currentTicketId || ""),
+    created_at: Date.now(),
+    attempts: 0
+  };
+  await neighborEvidenceTransaction("readwrite", (store) => store.put(queued));
+  await refreshOfflineOutboxIndicator();
+  return queued;
+}
+
+async function deleteQueuedNeighborEvidence(clientActionId) {
+  await neighborEvidenceTransaction("readwrite", (store) => store.delete(clientActionId));
+}
+
+async function neighborEvidenceRequestBody(entry) {
+  const body = {
+    ...entry.body,
+    sender_role: "NEIGHBOR",
+    sender_name: getNeighborName(),
+    client_action_id: entry.client_action_id
+  };
+  if (entry.media_blob) body.data_url = await blobToDataUrl(entry.media_blob);
+  return body;
+}
+
+async function sendNeighborEvidenceNetwork(entry) {
+  const response = await fetch(`${API}${entry.path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(await neighborEvidenceRequestBody(entry))
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.message || `Error HTTP ${response.status}`);
+    error.httpStatus = response.status;
+    throw error;
+  }
+  return data;
+}
+
+async function sendOrQueueNeighborEvidence(entry) {
+  const prepared = {
+    ...entry,
+    client_action_id: entry.client_action_id || newNeighborEvidenceId(),
+    owner_user_id: String(userId || ""),
+    ticket_id: String(entry.ticket_id || currentTicketId || "")
+  };
+  if (!navigator.onLine) {
+    await queueNeighborEvidence(prepared);
+    return { queued: true };
+  }
+  try {
+    return { queued: false, data: await sendNeighborEvidenceNetwork(prepared) };
+  } catch (error) {
+    if (error.httpStatus && error.httpStatus < 500 && error.httpStatus !== 429) throw error;
+    await queueNeighborEvidence(prepared);
+    return { queued: true, error };
+  }
+}
+
+async function syncQueuedNeighborEvidence() {
+  if (neighborEvidenceSyncing || !navigator.onLine || !localStorage.getItem(NEIGHBOR_TOKEN_KEY)) return;
+  neighborEvidenceSyncing = true;
+  try {
+    const pending = await listQueuedNeighborEvidenceForCurrentUser();
+    for (const entry of pending) {
+      try {
+        await sendNeighborEvidenceNetwork(entry);
+        await deleteQueuedNeighborEvidence(entry.client_action_id);
+      } catch (error) {
+        if (error.httpStatus && error.httpStatus >= 400 && error.httpStatus < 500 && error.httpStatus !== 429) {
+          await deleteQueuedNeighborEvidence(entry.client_action_id);
+          console.warn("[OFFLINE] antecedente descartado por respuesta definitiva", error.message);
+        } else {
+          break;
+        }
+      }
+    }
+  } finally {
+    neighborEvidenceSyncing = false;
+    await refreshOfflineOutboxIndicator();
+  }
+}
+
 function ensureConnectivityBanner() {
   let banner = document.getElementById("connectivityBanner");
   if (banner) return banner;
@@ -124,13 +274,23 @@ function ensureConnectivityBanner() {
 
 async function refreshOfflineOutboxIndicator() {
   const banner = ensureConnectivityBanner();
-  let pending = [];
-  try { pending = await listQueuedSosForCurrentUser(); } catch (error) { console.warn("[OFFLINE] cola no disponible", error); }
-  if (!navigator.onLine || pending.length) {
+  let pendingSos = [];
+  let pendingEvidence = [];
+  try { pendingSos = await listQueuedSosForCurrentUser(); } catch (error) { console.warn("[OFFLINE] cola SOS no disponible", error); }
+  try { pendingEvidence = await listQueuedNeighborEvidenceForCurrentUser(); } catch (error) { console.warn("[OFFLINE] cola de antecedentes no disponible", error); }
+  const totalPending = pendingSos.length + pendingEvidence.length;
+  if (!navigator.onLine || totalPending) {
     banner.style.display = "block";
-    banner.textContent = pending.length
-      ? `${pending.length} alerta${pending.length === 1 ? "" : "s"} pendiente${pending.length === 1 ? "" : "s"} de sincronizar · no cierres la App`
-      : "Sin conexión de datos · puedes preparar una alerta y se enviará al recuperar cobertura";
+    if (totalPending) {
+      const noun = pendingSos.length && pendingEvidence.length
+        ? "registro"
+        : pendingEvidence.length ? "antecedente" : "alerta";
+      banner.textContent = `${totalPending} ${noun}${totalPending === 1 ? "" : "s"} pendiente${totalPending === 1 ? "" : "s"} de sincronizar`;
+    } else {
+      banner.textContent = currentTicketId
+        ? "Sin conexión de datos · puedes seguir registrando antecedentes del caso"
+        : "Sin conexión de datos · puedes preparar una alerta y se enviará al recuperar cobertura";
+    }
   } else {
     banner.style.display = "none";
     banner.textContent = "";
@@ -2268,31 +2428,28 @@ async function sendTextMessage() {
   statusLabel.textContent = "Enviando mensaje...";
 
   try {
-    const res = await fetch(`${API}/tickets/${currentTicketId}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
+    const result = await sendOrQueueNeighborEvidence({
+      kind: "text",
+      ticket_id: currentTicketId,
+      path: `/tickets/${currentTicketId}/messages`,
+      body: {
         sender_role: "NEIGHBOR",
         sender_name: getNeighborName(),
         message
-      })
+      }
     });
-
-    if (!res.ok) {
-      throw new Error("Error HTTP " + res.status);
-    }
 
     prependCaseActivity({
       kind: "text",
-      title: "Mensaje de texto enviado",
+      title: result.queued ? "Mensaje guardado pendiente" : "Mensaje de texto enviado",
       body: message
     });
     textMessage.value = "";
     closeTextMessageModal();
-    statusLabel.textContent = "Mensaje enviado a la central";
-    refreshStatus();
+    statusLabel.textContent = result.queued
+      ? "Mensaje guardado · se enviará al reconectar"
+      : "Mensaje enviado a la central";
+    if (!result.queued) refreshStatus();
   } catch (error) {
     console.error(error);
     statusLabel.textContent = "No se pudo enviar el mensaje";
@@ -2304,41 +2461,42 @@ async function sendTextMessage() {
 async function uploadMedia(mediaType, blob, fileName) {
   if (!requireTicket()) return;
 
+  if (mediaType === "audio" && blob.size > 8 * 1024 * 1024) {
+    throw new Error("El audio supera el límite de 8 MB");
+  }
+  if (mediaType === "video" && blob.size > 25 * 1024 * 1024) {
+    throw new Error("El video supera el límite de 25 MB");
+  }
+
   statusLabel.textContent = mediaType === "audio"
     ? "Subiendo audio..."
     : "Subiendo video...";
 
-  const dataUrl = await blobToDataUrl(blob);
-
-  const res = await fetch(`${API}/tickets/${currentTicketId}/media`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const result = await sendOrQueueNeighborEvidence({
+    kind: mediaType,
+    ticket_id: currentTicketId,
+    path: `/tickets/${currentTicketId}/media`,
+    media_blob: blob,
+    body: {
       sender_role: "NEIGHBOR",
       sender_name: getNeighborName(),
       media_type: mediaType,
-      file_name: fileName,
-      data_url: dataUrl
-    })
+      file_name: fileName
+    }
   });
-
-  if (!res.ok) {
-    throw new Error("Error HTTP " + res.status);
-  }
-
-  const data = await res.json();
   prependCaseActivity({
     kind: mediaType,
-    title: mediaType === "audio" ? "Audio enviado" : "Video enviado",
-    media_url: data.media_url || null,
+    title: result.queued
+      ? `${mediaType === "audio" ? "Audio" : "Video"} guardado pendiente`
+      : mediaType === "audio" ? "Audio enviado" : "Video enviado",
+    media_url: result.data?.media_url || null,
     file_name: fileName
   });
-  statusLabel.textContent = mediaType === "audio"
-    ? "Audio enviado a la central"
-    : "Video enviado a la central";
-  refreshStatus();
+  statusLabel.textContent = result.queued
+    ? `${mediaType === "audio" ? "Audio" : "Video"} guardado · se enviará al reconectar`
+    : mediaType === "audio" ? "Audio enviado a la central" : "Video enviado a la central";
+  if (!result.queued) refreshStatus();
+  return result;
 }
 
 function getPreferredAudioOptions() {
@@ -3410,6 +3568,7 @@ async function initializeApp() {
       showActiveAlert();
     }
 
+    await syncQueuedNeighborEvidence();
     refreshStatus();
     return;
   }
@@ -3418,6 +3577,7 @@ async function initializeApp() {
     updateProfileCard();
     await refreshNeighborProfileFromServer();
     await syncQueuedSos();
+    await syncQueuedNeighborEvidence();
     const recovered = await recoverActiveCase();
 
     if (recovered) {
@@ -3437,9 +3597,13 @@ initializeApp();
 window.addEventListener("online", () => {
   void refreshOfflineOutboxIndicator();
   void syncQueuedSos();
+  void syncQueuedNeighborEvidence();
 });
 window.addEventListener("offline", () => void refreshOfflineOutboxIndicator());
-setInterval(() => void syncQueuedSos(), 15000);
+setInterval(() => {
+  void syncQueuedSos();
+  void syncQueuedNeighborEvidence();
+}, 15000);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

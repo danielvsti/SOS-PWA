@@ -1,4 +1,4 @@
-const CACHE_NAME = "queltu-city-v28-offline";
+const CACHE_NAME = "queltu-city-v29-neighbor-offline-evidence";
 const APP_SHELL = [
   "/",
   "/index.html",
