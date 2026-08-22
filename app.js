@@ -265,10 +265,15 @@ function ensureConnectivityBanner() {
   if (banner) return banner;
   banner = document.createElement("div");
   banner.id = "connectivityBanner";
+  banner.className = "connectivity-banner";
   banner.setAttribute("role", "status");
   banner.setAttribute("aria-live", "polite");
-  banner.style.cssText = "position:sticky;top:0;z-index:3200;display:none;padding:10px 16px;text-align:center;font-weight:800;background:#fef3c7;color:#78350f;box-shadow:0 4px 16px rgba(15,23,42,.12)";
-  document.body.prepend(banner);
+  banner.hidden = true;
+  const container = document.querySelector(".container");
+  const header = container?.querySelector(".neighbor-app-header");
+  if (header) header.insertAdjacentElement("afterend", banner);
+  else if (container) container.prepend(banner);
+  else document.body.appendChild(banner);
   return banner;
 }
 
@@ -278,29 +283,31 @@ async function refreshOfflineOutboxIndicator() {
   let pendingEvidence = [];
   try { pendingSos = await listQueuedSosForCurrentUser(); } catch (error) { console.warn("[OFFLINE] cola SOS no disponible", error); }
   try { pendingEvidence = await listQueuedNeighborEvidenceForCurrentUser(); } catch (error) { console.warn("[OFFLINE] cola de antecedentes no disponible", error); }
-  const totalPending = pendingSos.length + pendingEvidence.length;
   if (pendingEvidence.length && currentTicketId) {
     showCaseActionNotice(
       `${pendingEvidence.length} antecedente${pendingEvidence.length === 1 ? "" : "s"} guardado${pendingEvidence.length === 1 ? "" : "s"} · pendiente${pendingEvidence.length === 1 ? "" : "s"} de envío`,
       { persistent: true, tone: "pending" }
     );
-  } else if (!totalPending) {
-    hideCaseActionNotice();
+  } else if (currentTicketId && !navigator.onLine) {
+    showCaseActionNotice(
+      "Sin conexión · puedes seguir registrando antecedentes del caso",
+      { persistent: true, tone: "pending" }
+    );
+  } else {
+    const notice = document.getElementById("caseActionNotice");
+    if (notice?.dataset.tone === "pending") hideCaseActionNotice();
   }
-  if (!navigator.onLine || totalPending) {
-    banner.style.display = "block";
-    if (totalPending) {
-      const noun = pendingSos.length && pendingEvidence.length
-        ? "registro"
-        : pendingEvidence.length ? "antecedente" : "alerta";
-      banner.textContent = `${totalPending} ${noun}${totalPending === 1 ? "" : "s"} pendiente${totalPending === 1 ? "" : "s"} de sincronizar`;
+  const showTopBanner = (!currentTicketId || pendingSos.length > 0)
+    && (!navigator.onLine || pendingSos.length > 0);
+  if (showTopBanner) {
+    banner.hidden = false;
+    if (pendingSos.length) {
+      banner.textContent = `${pendingSos.length} alerta${pendingSos.length === 1 ? "" : "s"} pendiente${pendingSos.length === 1 ? "" : "s"} de sincronizar`;
     } else {
-      banner.textContent = currentTicketId
-        ? "Sin conexión de datos · puedes seguir registrando antecedentes del caso"
-        : "Sin conexión de datos · puedes preparar una alerta y se enviará al recuperar cobertura";
+      banner.textContent = "Sin conexión de datos · puedes preparar una alerta y se enviará al recuperar cobertura";
     }
   } else {
-    banner.style.display = "none";
+    banner.hidden = true;
     banner.textContent = "";
   }
 }
