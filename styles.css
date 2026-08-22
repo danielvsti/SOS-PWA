@@ -2478,3 +2478,130 @@ html.app-standalone #cancelButton:not([hidden]) {
 html.app-standalone .recording-banner {
   bottom: calc(58px + var(--ac-safe-bottom));
 }
+
+/* Biblioteca PNR para trabajadores de Centros de Control MINING. */
+.worker-pnr-section {
+  width: 100%;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #dbe5f2;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+  text-align: left;
+}
+
+.worker-pnr-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.worker-pnr-eyebrow {
+  color: #b42318;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.worker-pnr-heading h2 {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 21px;
+  line-height: 1.1;
+}
+
+.worker-pnr-area {
+  max-width: 42%;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #fff1f0;
+  color: #9f1c16;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.worker-pnr-intro {
+  margin: 8px 0 13px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.worker-pnr-list {
+  display: grid;
+  gap: 9px;
+}
+
+.worker-pnr-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.worker-pnr-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #e8eef8;
+  font-size: 20px;
+}
+
+.worker-pnr-copy {
+  min-width: 0;
+}
+
+.worker-pnr-copy strong,
+.worker-pnr-copy span {
+  display: block;
+}
+
+.worker-pnr-copy strong {
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.worker-pnr-copy span,
+.worker-pnr-copy p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.worker-pnr-open {
+  min-height: 40px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ef5350 0%, #c62828 100%);
+  color: #fff;
+  font-weight: 900;
+}
+
+@media (max-width: 390px) {
+  .worker-pnr-heading {
+    display: block;
+  }
+  .worker-pnr-area {
+    display: inline-block;
+    max-width: 100%;
+    margin-top: 9px;
+  }
+  .worker-pnr-card {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+  .worker-pnr-open {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}

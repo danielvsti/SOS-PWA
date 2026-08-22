@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Alerta Comunal</title>
+  <title>QUELTU Vecino</title>
   <meta name="app-version" content="v27.6-compact-native-dock">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css?v=27.6-compact-native-dock">
-  <meta name="theme-color" content="#dc2626">
+  <link rel="stylesheet" href="queltu-brand.css?v=20260716">
+  <meta name="theme-color" content="#151A1D">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Alerta Comunal">
+  <meta name="apple-mobile-web-app-title" content="QUELTU Vecino">
   <meta name="format-detection" content="telephone=no">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -41,10 +42,10 @@
   <main class="container">
     <header class="neighbor-app-header">
       <div class="neighbor-brand">
-        <img src="logo.svg" class="logo" alt="Alerta Comunal por VS&TI">
+        <img src="queltu-symbol.png" class="logo" alt="QUELTU">
         <div>
-          <h1>Alerta Comunal</h1>
-          <p class="product-subtitle">Sistema SOS Municipal por VS&TI</p>
+          <h1>QUELTU</h1>
+          <p class="product-subtitle">Protección y respuesta municipal · Vecino</p>
         </div>
       </div>
       <button id="appSettingsButton" class="top-settings-button" type="button" aria-label="Abrir configuración">⚙️</button>
@@ -294,6 +295,18 @@
           </button>
         </div>
       </div>
+
+      <section id="workerPnrSection" class="worker-pnr-section" hidden aria-labelledby="workerPnrTitle">
+        <div class="worker-pnr-heading">
+          <div>
+            <span class="worker-pnr-eyebrow">SEGURIDAD OPERACIONAL</span>
+            <h2 id="workerPnrTitle">Procedimientos, normas y reglas</h2>
+          </div>
+          <span id="workerPnrArea" class="worker-pnr-area"></span>
+        </div>
+        <p class="worker-pnr-intro">Documentos vigentes para tu área de trabajo.</p>
+        <div id="workerPnrList" class="worker-pnr-list"></div>
+      </section>
     </section>
 
     <section id="categoryPanel" class="category-panel" hidden>
@@ -491,6 +504,6 @@
       <div>Evento: <span id="eventId">-</span></div>
     </section>
   </main>
-  <script src="app.js?v=27.6-compact-native-dock"></script>
+  <script src="app.js?v=28-city-offline"></script>
 </body>
 </html>
