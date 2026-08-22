@@ -1,7 +1,22 @@
+const CANONICAL_APP_ORIGIN = "https://app.queltu.com";
+const LEGACY_APP_HOSTS = new Set(["sos-pwa.onrender.com"]);
+
+// Compatibilidad con señalética QR impresa antes de la migración QUELTU.
+// Conserva qr, coordenadas, Centro de Control, ruta y fragmento.
+if (LEGACY_APP_HOSTS.has(window.location.hostname.toLowerCase())) {
+  window.location.replace(
+    `${CANONICAL_APP_ORIGIN}${window.location.pathname}${window.location.search}${window.location.hash}`
+  );
+}
+
 const SOS_CONFIG = window.SOS_CONFIG || {};
 const API = SOS_CONFIG.API_BASE || "https://api.queltu.com";
 const NEIGHBOR_TOKEN_KEY = "sos_neighbor_session_token";
-const QR_CODE = String(new URLSearchParams(location.search).get("qr") || "").trim();
+const URL_PARAMS = new URLSearchParams(location.search);
+const QR_CODE = String(URL_PARAMS.get("qr") || "").trim();
+const CONFIGURED_CONTROL_CENTER_CODE = String(
+  SOS_CONFIG.CONTROL_CENTER_CODE || URL_PARAMS.get("cc") || ""
+).trim().toUpperCase();
 const QR_VISITOR_KEY = "sos_qr_visitor_token";
 let qrContext = JSON.parse(sessionStorage.getItem("sos_qr_context") || "null");
 const nativeFetch = window.fetch.bind(window);
@@ -13,12 +28,220 @@ window.fetch = (input, options = {}) => {
   if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
   return nativeFetch(input, { ...options, headers });
 };
+const SOS_OUTBOX_DB = "queltu-city-offline";
+const SOS_OUTBOX_STORE = "sos-outbox";
+const SOS_OUTBOX_RETENTION_MS = 72 * 60 * 60 * 1000;
+let sosOutboxSyncing = false;
+
+function openSosOutbox() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error("IndexedDB no disponible"));
+    const request = indexedDB.open(SOS_OUTBOX_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(SOS_OUTBOX_STORE)) {
+        const store = db.createObjectStore(SOS_OUTBOX_STORE, { keyPath: "client_request_id" });
+        store.createIndex("created_at", "created_at");
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("No se pudo abrir la cola offline"));
+  });
+}
+
+async function sosOutboxTransaction(mode, callback) {
+  const db = await openSosOutbox();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction(SOS_OUTBOX_STORE, mode);
+      const store = transaction.objectStore(SOS_OUTBOX_STORE);
+      let result;
+      try { result = callback(store); } catch (error) { reject(error); return; }
+      transaction.oncomplete = () => resolve(result?.result ?? result);
+      transaction.onerror = () => reject(transaction.error || new Error("Error en cola offline"));
+      transaction.onabort = () => reject(transaction.error || new Error("Operación offline cancelada"));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+function newSosClientRequestId() {
+  return globalThis.crypto?.randomUUID?.() || `sos-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function minimizedOfflinePayload(payload) {
+  const { name, phone, ...necessary } = payload;
+  return necessary;
+}
+
+async function listQueuedSos() {
+  const items = await sosOutboxTransaction("readonly", (store) => store.getAll());
+  const cutoff = Date.now() - SOS_OUTBOX_RETENTION_MS;
+  const fresh = (Array.isArray(items) ? items : []).filter((item) => Number(item.created_at || 0) >= cutoff);
+  const expired = (Array.isArray(items) ? items : []).filter((item) => Number(item.created_at || 0) < cutoff);
+  await Promise.all(expired.map((item) => sosOutboxTransaction("readwrite", (store) => store.delete(item.client_request_id))));
+  return fresh.sort((left, right) => Number(left.created_at) - Number(right.created_at));
+}
+
+async function queueSosPayload(payload) {
+  const entry = {
+    ...minimizedOfflinePayload(payload),
+    client_request_id: payload.client_request_id || newSosClientRequestId(),
+    created_at: Date.now(),
+    attempts: 0
+  };
+  await sosOutboxTransaction("readwrite", (store) => store.put(entry));
+  await refreshOfflineOutboxIndicator();
+  return entry;
+}
+
+async function deleteQueuedSos(clientRequestId) {
+  await sosOutboxTransaction("readwrite", (store) => store.delete(clientRequestId));
+}
+
+async function hasQueuedSos() {
+  try { return (await listQueuedSos()).length > 0; } catch (_) { return false; }
+}
+
+function ensureConnectivityBanner() {
+  let banner = document.getElementById("connectivityBanner");
+  if (banner) return banner;
+  banner = document.createElement("div");
+  banner.id = "connectivityBanner";
+  banner.setAttribute("role", "status");
+  banner.setAttribute("aria-live", "polite");
+  banner.style.cssText = "position:sticky;top:0;z-index:3200;display:none;padding:10px 16px;text-align:center;font-weight:800;background:#fef3c7;color:#78350f;box-shadow:0 4px 16px rgba(15,23,42,.12)";
+  document.body.prepend(banner);
+  return banner;
+}
+
+async function refreshOfflineOutboxIndicator() {
+  const banner = ensureConnectivityBanner();
+  let pending = [];
+  try { pending = await listQueuedSos(); } catch (error) { console.warn("[OFFLINE] cola no disponible", error); }
+  if (!navigator.onLine || pending.length) {
+    banner.style.display = "block";
+    banner.textContent = pending.length
+      ? `${pending.length} alerta${pending.length === 1 ? "" : "s"} pendiente${pending.length === 1 ? "" : "s"} de sincronizar · no cierres la App`
+      : "Sin conexión de datos · puedes preparar una alerta y se enviará al recuperar cobertura";
+  } else {
+    banner.style.display = "none";
+    banner.textContent = "";
+  }
+}
+
+async function sendSosNetwork(payload) {
+  const response = await fetch(`${API}/public/mobile/sos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.status === "error") {
+    const error = new Error(data.message || `Error HTTP ${response.status}`);
+    error.httpStatus = response.status;
+    error.responseData = data;
+    throw error;
+  }
+  return data;
+}
+
+async function deliverOrQueueSos(payload) {
+  const deliveryPayload = {
+    ...payload,
+    client_request_id: payload.client_request_id || newSosClientRequestId()
+  };
+  if (!navigator.onLine) {
+    await queueSosPayload(deliveryPayload);
+    return { queued: true, payload: deliveryPayload };
+  }
+  try {
+    return { queued: false, payload: deliveryPayload, data: await sendSosNetwork(deliveryPayload) };
+  } catch (error) {
+    if (error.httpStatus && error.httpStatus < 500 && error.httpStatus !== 429) throw error;
+    await queueSosPayload(deliveryPayload);
+    return { queued: true, payload: deliveryPayload, error };
+  }
+}
+
+function renderQueuedSos(silent = false) {
+  gpsStatus.textContent = "GUARDADO";
+  statusLabel.textContent = silent ? "Solicitud guardada para sincronizar" : "Alerta guardada · esperando cobertura";
+  if (categoryFeedback) {
+    categoryFeedback.hidden = false;
+    categoryFeedback.dataset.tone = "progress";
+    categoryFeedback.textContent = "La alerta quedó guardada de forma segura en este dispositivo. Se enviará automáticamente al recuperar Internet; aún no ha sido recibida por la central.";
+  }
+}
+
+function applySosDelivery(data, alertType) {
+  resetSecureVoiceState();
+  currentEventId = data.event_id;
+  currentTicketId = data.ticket_id || null;
+  localStorage.setItem("event_id", currentEventId);
+  setCurrentAlertType(alertType || selectedAlertType);
+  if (currentTicketId) localStorage.setItem("ticket_id", currentTicketId);
+  eventIdLabel.textContent = currentEventId;
+  eventStatus.textContent = "ACTIVO";
+  updateTicketLabels();
+  resetCaseProgress();
+  renderLinkedIncidentProgress(data);
+}
+
+async function syncQueuedSos() {
+  if (sosOutboxSyncing || !navigator.onLine || !localStorage.getItem(NEIGHBOR_TOKEN_KEY)) return;
+  sosOutboxSyncing = true;
+  try {
+    const pending = await listQueuedSos();
+    for (const entry of pending) {
+      try {
+        const data = await sendSosNetwork(entry);
+        await deleteQueuedSos(entry.client_request_id);
+        if (!currentEventId) {
+          applySosDelivery(data, entry.alert_type);
+          setFollowupMinimized(false);
+          showActiveAlert();
+          statusLabel.textContent = data.idempotent_replay
+            ? "Alerta reconciliada sin duplicados"
+            : "Alerta sincronizada y recibida por la central";
+        }
+      } catch (error) {
+        if (error.httpStatus && error.httpStatus >= 400 && error.httpStatus < 500 && error.httpStatus !== 429) {
+          await deleteQueuedSos(entry.client_request_id);
+          console.warn("[OFFLINE] alerta descartada por respuesta definitiva", error.message);
+        } else {
+          break;
+        }
+      }
+    }
+  } finally {
+    sosOutboxSyncing = false;
+    await refreshOfflineOutboxIndicator();
+  }
+}
 const IS_APP_STANDALONE =
   window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
   window.navigator.standalone === true ||
   Boolean(window.Capacitor?.isNativePlatform?.());
 
 document.documentElement.classList.toggle("app-standalone", IS_APP_STANDALONE);
+
+function effectiveControlCenterCode() {
+  return String(
+    neighborProfile?.control_center_code ||
+    qrContext?.qr_point?.control_center_code ||
+    CONFIGURED_CONTROL_CENTER_CODE ||
+    ""
+  ).trim().toUpperCase();
+}
+
+function addControlCenterContext(payload) {
+  const controlCenterCode = effectiveControlCenterCode();
+  return controlCenterCode
+    ? { ...payload, control_center_code: controlCenterCode }
+    : payload;
+}
 
 function qrVisitorToken() {
   let token = localStorage.getItem(QR_VISITOR_KEY);
@@ -647,7 +870,7 @@ async function registerNeighbor() {
       homeLocationStatus.textContent = `GPS domicilio OK · precisión ${homeAccuracy} m`;
     }
 
-    const payload = {
+    const payload = addControlCenterContext({
       full_name: fullName,
       rut: regRut.value.trim() || null,
       phone,
@@ -656,7 +879,7 @@ async function registerNeighbor() {
       latitude: homeLatitude ? Number(homeLatitude) : null,
       longitude: homeLongitude ? Number(homeLongitude) : null,
       emergency_contacts: buildEmergencyContacts()
-    };
+    });
 
     const res = await fetch(`${API}/auth/register`, {
       method: "POST",
@@ -1433,9 +1656,10 @@ function requireTicket() {
 async function sendSOS() {
   if (!(await ensureNeighborCanUseSOS())) return;
 
-  if (currentEventId) {
-    statusLabel.textContent = "Ya existe una alerta activa";
-    showActiveAlert();
+  if (currentEventId || await hasQueuedSos()) {
+    statusLabel.textContent = currentEventId ? "Ya existe una alerta activa" : "Ya existe una alerta esperando sincronización";
+    if (currentEventId) showActiveAlert();
+    await refreshOfflineOutboxIndicator();
     return;
   }
 
@@ -1457,7 +1681,7 @@ async function sendSOS() {
       categoryFeedback.textContent = "Enviando alerta a la central…";
     }
 
-    const payload = {
+    const payload = addControlCenterContext({
       user_id: userId,
       name: getNeighborName(),
       phone: getNeighborPhone(),
@@ -1465,52 +1689,32 @@ async function sendSOS() {
       control_center_code: getNeighborControlCenterCode(),
       alert_type: selectedAlertType,
       title: alertDefinitions[selectedAlertType].title,
-      description: "Alerta enviada desde PWA SOS Municipal",
+      description: "Alerta enviada desde QUELTU Vecino PWA",
       priority: alertDefinitions[selectedAlertType].priority,
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
       accuracy: Math.round(position.coords.accuracy),
       battery: null,
       qr_context: qrContext ? { code: qrContext.code, visit_id: qrContext.visit_id } : null
-    };
+    });
 
     accuracyLabel.textContent = payload.accuracy + " m";
 
-    const res = await fetch(`${API}/public/mobile/sos`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || data.status === "error") {
-      throw new Error(data.message || ("Error HTTP " + res.status));
+    const delivery = await deliverOrQueueSos(payload);
+    if (delivery.queued) {
+      renderQueuedSos(false);
+      return;
     }
-
-    resetSecureVoiceState();
-    currentEventId = data.event_id;
-    currentTicketId = data.ticket_id || null;
-
-    localStorage.setItem("event_id", currentEventId);
-    setCurrentAlertType(selectedAlertType);
+    const data = delivery.data;
+    applySosDelivery(data, selectedAlertType);
     setFollowupMinimized(false);
-    if (currentTicketId) {
-      localStorage.setItem("ticket_id", currentTicketId);
-    }
-
-    eventIdLabel.textContent = currentEventId;
-    eventStatus.textContent = "ACTIVO";
     const linkedText = linkedIncidentStatusText(data);
     statusLabel.textContent = linkedText || (currentTicketId
       ? `Alerta enviada · ${shortTicketId(currentTicketId)}`
       : "Alerta enviada");
 
     showActiveAlert();
-    resetCaseProgress();
-    renderLinkedIncidentProgress(data);
+    await refreshOfflineOutboxIndicator();
   } catch (error) {
     console.error(error);
     gpsStatus.textContent = "ERROR";
@@ -1531,8 +1735,8 @@ async function sendSOS() {
 async function sendMobileSOSPayload({ alert_type, title, priority = 1, description, source = "mobile_pwa", sensor_event_type = null, silent = false, confidence = null }) {
   if (!(await ensureNeighborCanUseSOS())) return false;
 
-  if (currentEventId) {
-    statusLabel.textContent = silent ? "Solicitud recibida" : "Ya existe una alerta activa";
+  if (currentEventId || await hasQueuedSos()) {
+    statusLabel.textContent = silent ? "Solicitud ya registrada" : (currentEventId ? "Ya existe una alerta activa" : "Ya existe una alerta esperando sincronización");
     if (!silent) showActiveAlert();
     return false;
   }
@@ -1545,7 +1749,7 @@ async function sendMobileSOSPayload({ alert_type, title, priority = 1, descripti
     gpsStatus.textContent = "OK";
     accuracyLabel.textContent = Math.round(position.coords.accuracy) + " m";
 
-    const payload = {
+    const payload = addControlCenterContext({
       user_id: userId,
       name: getNeighborName(),
       phone: getNeighborPhone(),
@@ -1563,31 +1767,15 @@ async function sendMobileSOSPayload({ alert_type, title, priority = 1, descripti
       confidence,
       silent,
       qr_context: qrContext ? { code: qrContext.code, visit_id: qrContext.visit_id } : null
-    };
-
-    const res = await fetch(`${API}/public/mobile/sos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
     });
 
-    const data = await res.json();
-
-    if (!res.ok || data.status === "error") {
-      throw new Error(data.message || ("Error HTTP " + res.status));
+    const delivery = await deliverOrQueueSos(payload);
+    if (delivery.queued) {
+      renderQueuedSos(silent);
+      return true;
     }
-
-    resetSecureVoiceState();
-    currentEventId = data.event_id;
-    currentTicketId = data.ticket_id || null;
-    localStorage.setItem("event_id", currentEventId);
-    if (currentTicketId) localStorage.setItem("ticket_id", currentTicketId);
-
-    eventIdLabel.textContent = currentEventId;
-    eventStatus.textContent = "ACTIVO";
-    updateTicketLabels();
-    resetCaseProgress();
-    renderLinkedIncidentProgress(data);
+    const data = delivery.data;
+    applySosDelivery(data, alert_type);
 
     if (silent) {
       setFollowupMinimized(true);
@@ -3115,7 +3303,7 @@ function openAppSettings() {
   const accountName = profile?.name || profile?.full_name || "Vecino registrado";
   const accountPhone = profile?.phone || "—";
   const accountStatus = profile?.validation_status || profile?.status || "PROVISIONAL_ACTIVE";
-  const accountCenter = profile?.control_center_code || "Asignado por GPS";
+  const accountCenter = profile?.control_center_name || profile?.control_center_code || effectiveControlCenterCode() || "Asignado según tu ubicación";
   document.getElementById("settingsAccountName").textContent = accountName;
   document.getElementById("settingsAccountMeta").textContent = `${accountPhone} · ${accountStatus}`;
   document.getElementById("settingsNeighborName").textContent = accountName;
@@ -3200,6 +3388,7 @@ setInterval(() => {
 
 async function initializeApp() {
   updateTicketLabels();
+  await refreshOfflineOutboxIndicator();
 
   if (currentEventId) {
     eventIdLabel.textContent = currentEventId;
@@ -3222,6 +3411,7 @@ async function initializeApp() {
   if (isNeighborRegistered()) {
     updateProfileCard();
     await refreshNeighborProfileFromServer();
+    await syncQueuedSos();
     const recovered = await recoverActiveCase();
 
     if (recovered) {
@@ -3237,6 +3427,21 @@ async function initializeApp() {
 }
 
 initializeApp();
+
+window.addEventListener("online", () => {
+  void refreshOfflineOutboxIndicator();
+  void syncQueuedSos();
+});
+window.addEventListener("offline", () => void refreshOfflineOutboxIndicator());
+setInterval(() => void syncQueuedSos(), 15000);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+      console.warn("[PWA] no se pudo registrar el modo offline", error);
+    });
+  });
+}
 
 
 /* --- QA v1 FORCE: ocultar caja técnica no útil para vecino --- */
