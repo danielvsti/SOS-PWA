@@ -279,6 +279,14 @@ async function refreshOfflineOutboxIndicator() {
   try { pendingSos = await listQueuedSosForCurrentUser(); } catch (error) { console.warn("[OFFLINE] cola SOS no disponible", error); }
   try { pendingEvidence = await listQueuedNeighborEvidenceForCurrentUser(); } catch (error) { console.warn("[OFFLINE] cola de antecedentes no disponible", error); }
   const totalPending = pendingSos.length + pendingEvidence.length;
+  if (pendingEvidence.length && currentTicketId) {
+    showCaseActionNotice(
+      `${pendingEvidence.length} antecedente${pendingEvidence.length === 1 ? "" : "s"} guardado${pendingEvidence.length === 1 ? "" : "s"} · pendiente${pendingEvidence.length === 1 ? "" : "s"} de envío`,
+      { persistent: true, tone: "pending" }
+    );
+  } else if (!totalPending) {
+    hideCaseActionNotice();
+  }
   if (!navigator.onLine || totalPending) {
     banner.style.display = "block";
     if (totalPending) {
@@ -485,6 +493,43 @@ const incomingCallPanel = document.getElementById("incomingCallPanel");
 const incomingCallIcon = document.getElementById("incomingCallIcon");
 const incomingCallTitle = document.getElementById("incomingCallTitle");
 const incomingCallText = document.getElementById("incomingCallText");
+let textModalScrollY = 0;
+let caseActionNoticeTimer = null;
+
+function ensureCaseActionNotice() {
+  let notice = document.getElementById("caseActionNotice");
+  if (notice) return notice;
+  notice = document.createElement("div");
+  notice.id = "caseActionNotice";
+  notice.className = "case-action-notice";
+  notice.setAttribute("role", "status");
+  notice.setAttribute("aria-live", "polite");
+  notice.hidden = true;
+  document.body.appendChild(notice);
+  return notice;
+}
+
+function showCaseActionNotice(message, options = {}) {
+  const notice = ensureCaseActionNotice();
+  window.clearTimeout(caseActionNoticeTimer);
+  notice.textContent = message;
+  notice.dataset.tone = options.tone || "info";
+  notice.hidden = false;
+  if (!options.persistent) {
+    caseActionNoticeTimer = window.setTimeout(() => {
+      notice.hidden = true;
+      notice.textContent = "";
+    }, options.duration || 4200);
+  }
+}
+
+function hideCaseActionNotice() {
+  const notice = document.getElementById("caseActionNotice");
+  window.clearTimeout(caseActionNoticeTimer);
+  if (!notice) return;
+  notice.hidden = true;
+  notice.textContent = "";
+}
 
 const authPanel = document.getElementById("authPanel");
 const loginBlock = document.getElementById("loginBlock");
@@ -1769,6 +1814,7 @@ function showActiveAlert() {
   if (!textPanel || textPanel.hidden) {
     document.body.classList.remove("modal-open");
   }
+  window.setTimeout(() => void refreshOfflineOutboxIndicator(), 0);
 }
 
 function setSendingState(isSending) {
@@ -2392,10 +2438,13 @@ function openTextMessageModal() {
   if (!requireTicket()) return;
   if (!textPanel) return;
 
+  textModalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  if (textPanel.parentElement !== document.body) document.body.appendChild(textPanel);
   textPanel.hidden = false;
   textPanel.classList.add("is-open");
   textPanel.removeAttribute("aria-hidden");
   textPanel.style.removeProperty("display");
+  document.body.style.top = `-${textModalScrollY}px`;
   document.body.classList.add("modal-open");
 
   setTimeout(() => textMessage?.focus(), 80);
@@ -2412,6 +2461,8 @@ function closeTextMessageModal() {
   textPanel.setAttribute("aria-hidden", "true");
   textPanel.style.removeProperty("display");
   document.body.classList.remove("modal-open");
+  document.body.style.removeProperty("top");
+  window.scrollTo(0, textModalScrollY);
 }
 
 
@@ -2449,6 +2500,10 @@ async function sendTextMessage() {
     statusLabel.textContent = result.queued
       ? "Mensaje guardado · se enviará al reconectar"
       : "Mensaje enviado a la central";
+    showCaseActionNotice(
+      result.queued ? "💬 Mensaje guardado · pendiente de envío" : "✅ Mensaje enviado a la central",
+      result.queued ? { persistent: true, tone: "pending" } : { tone: "success" }
+    );
     if (!result.queued) refreshStatus();
   } catch (error) {
     console.error(error);
@@ -2495,6 +2550,12 @@ async function uploadMedia(mediaType, blob, fileName) {
   statusLabel.textContent = result.queued
     ? `${mediaType === "audio" ? "Audio" : "Video"} guardado · se enviará al reconectar`
     : mediaType === "audio" ? "Audio enviado a la central" : "Video enviado a la central";
+  showCaseActionNotice(
+    result.queued
+      ? `${mediaType === "audio" ? "🎙️ Audio" : "📹 Video"} guardado · pendiente de envío`
+      : `✅ ${mediaType === "audio" ? "Audio" : "Video"} enviado a la central`,
+    result.queued ? { persistent: true, tone: "pending" } : { tone: "success" }
+  );
   if (!result.queued) refreshStatus();
   return result;
 }
@@ -3641,100 +3702,3 @@ window.addEventListener("DOMContentLoaded", registerQrAccess);
 window.addEventListener("load", hideNeighborTechnicalInfoBox);
 setTimeout(hideNeighborTechnicalInfoBox, 250);
 setTimeout(hideNeighborTechnicalInfoBox, 1000);
-
-
-/* --- QA v1 FINAL: cierre robusto modal mensaje texto --- */
-(function setupTextMessageModalCloseFix() {
-  function closeModal() {
-    const modal = document.getElementById("textPanel");
-    if (!modal) return;
-
-    modal.hidden = true;
-    modal.classList.remove("is-open");
-    modal.setAttribute("aria-hidden", "true");
-    modal.style.setProperty("display", "none", "important");
-    document.body.classList.remove("modal-open");
-  }
-
-  function openModalPatch() {
-    const modal = document.getElementById("textPanel");
-    if (!modal) return;
-
-    modal.hidden = false;
-    modal.classList.add("is-open");
-    modal.removeAttribute("aria-hidden");
-    modal.style.removeProperty("display");
-    document.body.classList.add("modal-open");
-
-    setTimeout(() => {
-      const textarea = document.getElementById("textMessage");
-      if (textarea) textarea.focus();
-    }, 80);
-  }
-
-  // Cierre por click en X, Cancelar o fondo oscuro.
-  document.addEventListener("click", function(event) {
-    const target = event.target;
-
-    if (
-      target?.id === "closeTextPanelButton" ||
-      target?.id === "cancelTextPanelButton" ||
-      target?.closest?.("#closeTextPanelButton") ||
-      target?.closest?.("#cancelTextPanelButton")
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-      closeModal();
-      return;
-    }
-
-    const modal = document.getElementById("textPanel");
-    if (modal && target === modal) {
-      event.preventDefault();
-      event.stopPropagation();
-      closeModal();
-    }
-  }, true);
-
-  // Cierre por touch en iPhone, antes de que otro listener lo capture.
-  document.addEventListener("touchend", function(event) {
-    const target = event.target;
-
-    if (
-      target?.id === "closeTextPanelButton" ||
-      target?.id === "cancelTextPanelButton" ||
-      target?.closest?.("#closeTextPanelButton") ||
-      target?.closest?.("#cancelTextPanelButton")
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-      closeModal();
-    }
-  }, { capture: true, passive: false });
-
-  // Escape en browser.
-  window.addEventListener("keydown", function(event) {
-    if (event.key === "Escape") closeModal();
-  });
-
-  // Reforzar botón Mensaje para abrir modal.
-  window.addEventListener("DOMContentLoaded", function() {
-    const textButton = document.getElementById("textButton");
-    if (textButton && !textButton.dataset.qaModalOpenFix) {
-      textButton.dataset.qaModalOpenFix = "true";
-      textButton.addEventListener("click", function(event) {
-        event.preventDefault();
-        openModalPatch();
-      }, true);
-    }
-
-    const closeBtn = document.getElementById("closeTextPanelButton");
-    const cancelBtn = document.getElementById("cancelTextPanelButton");
-    if (closeBtn) closeBtn.type = "button";
-    if (cancelBtn) cancelBtn.type = "button";
-  });
-
-  // Exponer por si sendTextMessage quiere cerrar después de enviar.
-  window.closeTextMessageModal = closeModal;
-})();
-/* --- END QA v1 FINAL: cierre robusto modal mensaje texto --- */
