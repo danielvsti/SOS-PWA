@@ -1,4 +1,4 @@
-const CACHE_NAME = "queltu-city-v29-internal-case-scroll";
+const CACHE_NAME = "queltu-city-v29-media-playback";
 const APP_SHELL = [
   "/",
   "/index.html",

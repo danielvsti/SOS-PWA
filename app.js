@@ -1554,6 +1554,104 @@ function formatActivityTime(value) {
   });
 }
 
+function stableActivityMediaPath(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(value, window.location.origin);
+    return `${url.origin}${url.pathname}`;
+  } catch (_) {
+    return String(value).split("?")[0].split("#")[0];
+  }
+}
+
+function activityMediaKey(item, index = 0) {
+  return String(
+    item?.media_id
+    || item?.id
+    || stableActivityMediaPath(item?.media_url)
+    || `${item?.kind || "media"}-${item?.created_at || index}-${item?.file_name || index}`
+  );
+}
+
+function hasPlayingInlineMedia(container) {
+  return Array.from(container?.querySelectorAll?.("audio, video") || [])
+    .some((media) => !media.paused && !media.ended);
+}
+
+function captureInlineMediaPlayback(container) {
+  const state = new Map();
+  container?.querySelectorAll?.("[data-inline-media]").forEach((media) => {
+    const key = media.dataset.inlineMedia || media.currentSrc || media.src;
+    if (!key) return;
+    state.set(key, {
+      currentTime: Number.isFinite(media.currentTime) ? media.currentTime : 0,
+      wasPlaying: !media.paused && !media.ended,
+      volume: media.volume,
+      muted: media.muted,
+      playbackRate: media.playbackRate
+    });
+  });
+  return state;
+}
+
+function restoreInlineMediaPlayback(container, state) {
+  if (!container || !state?.size) return;
+  container.querySelectorAll("[data-inline-media]").forEach((media) => {
+    const saved = state.get(media.dataset.inlineMedia || media.currentSrc || media.src);
+    if (!saved) return;
+    const restore = () => {
+      try {
+        if (saved.currentTime > 0 && Number.isFinite(media.duration)) {
+          media.currentTime = Math.min(saved.currentTime, Math.max(0, media.duration - 0.05));
+        }
+        media.volume = saved.volume;
+        media.muted = saved.muted;
+        media.playbackRate = saved.playbackRate;
+        if (saved.wasPlaying) media.play().catch(() => null);
+      } catch (error) {
+        console.warn("No se pudo restaurar la evidencia multimedia", error);
+      }
+    };
+    if (media.readyState >= 1) restore();
+    else media.addEventListener("loadedmetadata", restore, { once: true });
+  });
+}
+
+function activityMediaHtml(kind, mediaUrl, mediaKey) {
+  if (!mediaUrl) return "";
+  const safeUrl = escapeHtml(mediaUrl);
+  const safeKey = escapeHtml(mediaKey || stableActivityMediaPath(mediaUrl));
+  if (kind === "audio") {
+    return `<audio class="case-activity-media" controls playsinline preload="metadata" data-inline-media="${safeKey}" src="${safeUrl}"></audio>`;
+  }
+  if (kind === "video") {
+    return `<video class="case-activity-media case-activity-video" controls playsinline preload="metadata" data-inline-media="${safeKey}" src="${safeUrl}"></video>`;
+  }
+  return `<a class="case-activity-link" href="${safeUrl}" target="_blank" rel="noopener">Ver evidencia</a>`;
+}
+
+function caseActivityItemHtml(item, index = 0) {
+  const kind = item.kind || "event";
+  const title = item.title || "Actualización enviada";
+  const body = item.body || "";
+  const mediaUrl = item.media_url || "";
+  const mediaLink = activityMediaHtml(kind, mediaUrl, activityMediaKey(item, index));
+
+  return `
+    <div class="case-activity-item ${escapeHtml(kind)}">
+      <div class="case-activity-icon">${activityIcon(kind)}</div>
+      <div class="case-activity-body">
+        <div class="case-activity-title-row">
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(formatActivityTime(item.created_at))}</span>
+        </div>
+        ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+        ${mediaLink}
+      </div>
+    </div>
+  `;
+}
+
 function renderCaseActivity(items = []) {
   if (!caseActivityList || !caseActivityEmpty) return;
 
@@ -1567,46 +1665,37 @@ function renderCaseActivity(items = []) {
       return safeLeftTime - safeRightTime || left.index - right.index;
     })
     .map(({ item }) => item);
+  const signature = JSON.stringify(list.map((item) => [
+    item.id,
+    item.kind,
+    item.title,
+    item.body,
+    stableActivityMediaPath(item.media_url),
+    item.created_at
+  ]));
+  if (caseActivityList.dataset.renderSignature === signature) return;
+  if (hasPlayingInlineMedia(caseActivityList)) {
+    caseActivityList.dataset.pendingRenderSignature = signature;
+    return;
+  }
   caseActivityEmpty.hidden = list.length > 0;
-
-  caseActivityList.innerHTML = list.map((item) => {
-    const kind = item.kind || "event";
-    const title = item.title || "Actualización enviada";
-    const body = item.body || "";
-    const mediaUrl = item.media_url || "";
-    const mediaLink = mediaUrl
-      ? `<a class="case-activity-link" href="${escapeHtml(mediaUrl)}" target="_blank" rel="noopener">Ver evidencia</a>`
-      : "";
-
-    return `
-      <div class="case-activity-item ${escapeHtml(kind)}">
-        <div class="case-activity-icon">${activityIcon(kind)}</div>
-        <div class="case-activity-body">
-          <div class="case-activity-title-row">
-            <strong>${escapeHtml(title)}</strong>
-            <span>${escapeHtml(formatActivityTime(item.created_at))}</span>
-          </div>
-          ${body ? `<p>${escapeHtml(body)}</p>` : ""}
-          ${mediaLink}
-        </div>
-      </div>
-    `;
-  }).join("");
+  const playbackState = captureInlineMediaPlayback(caseActivityList);
+  caseActivityList.innerHTML = list.map(caseActivityItemHtml).join("");
+  caseActivityList.dataset.renderSignature = signature;
+  delete caseActivityList.dataset.pendingRenderSignature;
+  restoreInlineMediaPlayback(caseActivityList, playbackState);
 }
 
 function prependCaseActivity(item) {
   if (!caseActivityList || !caseActivityEmpty) return;
-
-  const current = caseActivityList.innerHTML;
-  renderCaseActivity([{
+  const localItem = {
     id: `local-${Date.now()}`,
     created_at: new Date().toISOString(),
     ...item
-  }]);
-
-  if (current) {
-    caseActivityList.insertAdjacentHTML("afterbegin", current);
-  }
+  };
+  caseActivityList.insertAdjacentHTML("beforeend", caseActivityItemHtml(localItem));
+  caseActivityEmpty.hidden = true;
+  delete caseActivityList.dataset.renderSignature;
 }
 
 function resetCaseProgress() {
