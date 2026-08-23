@@ -405,8 +405,11 @@ const IS_APP_STANDALONE =
   window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
   window.navigator.standalone === true ||
   Boolean(window.Capacitor?.isNativePlatform?.());
+const IS_IOS_WEBKIT = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 document.documentElement.classList.toggle("app-standalone", IS_APP_STANDALONE);
+document.body.classList.toggle("native-ios-shell", IS_IOS_WEBKIT);
 
 function effectiveControlCenterCode() {
   return String(
@@ -2477,7 +2480,7 @@ function openTextMessageModal() {
   textPanel.classList.add("is-open");
   textPanel.removeAttribute("aria-hidden");
   textPanel.style.removeProperty("display");
-  document.body.style.top = `-${textModalScrollY}px`;
+  if (!IS_IOS_WEBKIT) document.body.style.top = `-${textModalScrollY}px`;
   document.body.classList.add("modal-open");
 
   setTimeout(() => textMessage?.focus(), 80);
@@ -2489,13 +2492,28 @@ function closeTextMessageModal() {
     return;
   }
 
+  textMessage?.blur();
   textPanel.hidden = true;
   textPanel.classList.remove("is-open");
   textPanel.setAttribute("aria-hidden", "true");
   textPanel.style.removeProperty("display");
   document.body.classList.remove("modal-open");
   document.body.style.removeProperty("top");
-  window.scrollTo(0, textModalScrollY);
+  const restoreViewport = () => {
+    window.scrollTo(0, textModalScrollY);
+    syncActiveCaseDockState();
+    if (communicationGrid) {
+      communicationGrid.style.setProperty("top", "auto", "important");
+      communicationGrid.style.setProperty("bottom", "0", "important");
+      void communicationGrid.offsetHeight;
+    }
+  };
+  restoreViewport();
+  if (IS_IOS_WEBKIT) {
+    window.requestAnimationFrame(restoreViewport);
+    window.setTimeout(restoreViewport, 180);
+    window.setTimeout(restoreViewport, 420);
+  }
 }
 
 

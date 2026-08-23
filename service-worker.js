@@ -1,4 +1,4 @@
-const CACHE_NAME = "queltu-city-v29-body-dock";
+const CACHE_NAME = "queltu-city-v29-ios-keyboard-viewport";
 const APP_SHELL = [
   "/",
   "/index.html",

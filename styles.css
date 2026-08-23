@@ -2659,6 +2659,14 @@ body.modal-open {
   touch-action: none !important;
 }
 
+body.native-ios-shell.modal-open {
+  position: static !important;
+  left: auto !important;
+  right: auto !important;
+  width: auto !important;
+  overflow: hidden !important;
+}
+
 body > .message-modal {
   position: fixed !important;
   inset: 0 !important;
