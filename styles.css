@@ -2775,3 +2775,49 @@ body.active-case-open.modal-open > .communication-grid,
 body.active-case-open.voice-call-open > .communication-grid {
   display: none !important;
 }
+
+/* Shell definitivo del caso: solo la ficha central se desplaza. */
+html {
+  height: 100%;
+}
+
+body.active-case-open {
+  position: relative !important;
+  width: 100% !important;
+  height: 100vh !important;
+  height: 100svh !important;
+  min-height: 0 !important;
+  max-height: 100svh !important;
+  overflow: hidden !important;
+}
+
+body.active-case-open > .container {
+  display: flex !important;
+  width: min(100%, 520px) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  flex-direction: column !important;
+}
+
+body.active-case-open #activePanel {
+  min-height: 0 !important;
+  max-height: none !important;
+  padding-bottom: calc(var(--ac-case-dock-height) + var(--ac-safe-bottom) + 18px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+body.active-case-open > .communication-grid,
+body.active-case-open > .case-action-notice {
+  position: absolute !important;
+}
+
+body.active-case-open.native-ios-shell.modal-open {
+  position: relative !important;
+  height: 100svh !important;
+}

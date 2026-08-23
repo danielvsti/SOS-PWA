@@ -1,4 +1,4 @@
-const CACHE_NAME = "queltu-city-v29-ios-keyboard-viewport";
+const CACHE_NAME = "queltu-city-v29-internal-case-scroll";
 const APP_SHELL = [
   "/",
   "/index.html",
