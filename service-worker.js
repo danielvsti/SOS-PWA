@@ -1,4 +1,4 @@
-const CACHE_NAME = "queltu-city-v29-media-playback";
+const CACHE_NAME = "queltu-city-v30-stable-activity";
 const APP_SHELL = [
   "/",
   "/index.html",

@@ -1573,6 +1573,26 @@ function activityMediaKey(item, index = 0) {
   );
 }
 
+function activityItemKey(item, index = 0) {
+  return String(
+    item?.id
+    || item?.client_action_id
+    || `${item?.kind || "event"}-${item?.created_at || "pending"}-${stableActivityMediaPath(item?.media_url) || item?.body || item?.title || index}`
+  );
+}
+
+function activityItemSignature(item, index = 0) {
+  return JSON.stringify([
+    activityItemKey(item, index),
+    item?.kind || "event",
+    item?.title || "",
+    item?.body || "",
+    stableActivityMediaPath(item?.media_url),
+    item?.file_name || "",
+    item?.created_at || ""
+  ]);
+}
+
 function hasPlayingInlineMedia(container) {
   return Array.from(container?.querySelectorAll?.("audio, video") || [])
     .some((media) => !media.paused && !media.ended);
@@ -1636,9 +1656,11 @@ function caseActivityItemHtml(item, index = 0) {
   const body = item.body || "";
   const mediaUrl = item.media_url || "";
   const mediaLink = activityMediaHtml(kind, mediaUrl, activityMediaKey(item, index));
+  const itemKey = activityItemKey(item, index);
+  const itemSignature = activityItemSignature(item, index);
 
   return `
-    <div class="case-activity-item ${escapeHtml(kind)}">
+    <div class="case-activity-item ${escapeHtml(kind)}" data-activity-key="${escapeHtml(itemKey)}" data-activity-signature="${escapeHtml(itemSignature)}">
       <div class="case-activity-icon">${activityIcon(kind)}</div>
       <div class="case-activity-body">
         <div class="case-activity-title-row">
@@ -1652,6 +1674,12 @@ function caseActivityItemHtml(item, index = 0) {
   `;
 }
 
+function caseActivityItemElement(item, index = 0) {
+  const template = document.createElement("template");
+  template.innerHTML = caseActivityItemHtml(item, index).trim();
+  return template.content.firstElementChild;
+}
+
 function renderCaseActivity(items = []) {
   if (!caseActivityList || !caseActivityEmpty) return;
 
@@ -1662,38 +1690,66 @@ function renderCaseActivity(items = []) {
       const rightTime = new Date(right.item?.created_at || 0).getTime();
       const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
       const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
-      return safeLeftTime - safeRightTime || left.index - right.index;
+      return safeLeftTime - safeRightTime
+        || activityItemKey(left.item, left.index).localeCompare(activityItemKey(right.item, right.index));
     })
     .map(({ item }) => item);
-  const signature = JSON.stringify(list.map((item) => [
-    item.id,
-    item.kind,
-    item.title,
-    item.body,
-    stableActivityMediaPath(item.media_url),
-    item.created_at
-  ]));
+  const signature = JSON.stringify(list.map(activityItemSignature));
   if (caseActivityList.dataset.renderSignature === signature) return;
-  if (hasPlayingInlineMedia(caseActivityList)) {
-    caseActivityList.dataset.pendingRenderSignature = signature;
-    return;
-  }
   caseActivityEmpty.hidden = list.length > 0;
-  const playbackState = captureInlineMediaPlayback(caseActivityList);
-  caseActivityList.innerHTML = list.map(caseActivityItemHtml).join("");
-  caseActivityList.dataset.renderSignature = signature;
-  delete caseActivityList.dataset.pendingRenderSignature;
-  restoreInlineMediaPlayback(caseActivityList, playbackState);
+  const existingByKey = new Map(
+    Array.from(caseActivityList.querySelectorAll("[data-activity-key]"))
+      .map((node) => [node.dataset.activityKey, node])
+  );
+  const desiredNodes = new Set();
+  let deferredMediaUpdate = false;
+
+  list.forEach((item, index) => {
+    const key = activityItemKey(item, index);
+    const itemSignature = activityItemSignature(item, index);
+    let node = existingByKey.get(key) || null;
+
+    if (!node || node.dataset.activitySignature !== itemSignature) {
+      if (node && hasPlayingInlineMedia(node)) {
+        deferredMediaUpdate = true;
+      } else {
+        const replacement = caseActivityItemElement(item, index);
+        if (node) node.replaceWith(replacement);
+        node = replacement;
+      }
+    }
+
+    const nodeAtPosition = caseActivityList.children[index];
+    if (nodeAtPosition !== node) {
+      caseActivityList.insertBefore(node, nodeAtPosition || null);
+    }
+    desiredNodes.add(node);
+  });
+
+  Array.from(caseActivityList.children).forEach((node) => {
+    if (!desiredNodes.has(node)) node.remove();
+  });
+
+  if (deferredMediaUpdate) {
+    caseActivityList.dataset.pendingRenderSignature = signature;
+    delete caseActivityList.dataset.renderSignature;
+  } else {
+    caseActivityList.dataset.renderSignature = signature;
+    delete caseActivityList.dataset.pendingRenderSignature;
+  }
 }
 
 function prependCaseActivity(item) {
   if (!caseActivityList || !caseActivityEmpty) return;
   const localItem = {
-    id: `local-${Date.now()}`,
-    created_at: new Date().toISOString(),
-    ...item
+    ...item,
+    id: item?.id || `local-${Date.now()}`,
+    created_at: item?.created_at || new Date().toISOString()
   };
-  caseActivityList.insertAdjacentHTML("beforeend", caseActivityItemHtml(localItem));
+  const existing = caseActivityList.querySelector(`[data-activity-key="${CSS.escape(activityItemKey(localItem))}"]`);
+  const node = caseActivityItemElement(localItem);
+  if (existing) existing.replaceWith(node);
+  else caseActivityList.appendChild(node);
   caseActivityEmpty.hidden = true;
   delete caseActivityList.dataset.renderSignature;
 }
@@ -2631,6 +2687,8 @@ async function sendTextMessage() {
     });
 
     prependCaseActivity({
+      id: result.data?.action?.id,
+      created_at: result.data?.action?.created_at,
       kind: "text",
       title: result.queued ? "Mensaje guardado pendiente" : "Mensaje de texto enviado",
       body: message
@@ -2680,6 +2738,8 @@ async function uploadMedia(mediaType, blob, fileName) {
     }
   });
   prependCaseActivity({
+    id: result.data?.action?.id,
+    created_at: result.data?.action?.created_at,
     kind: mediaType,
     title: result.queued
       ? `${mediaType === "audio" ? "Audio" : "Video"} guardado pendiente`

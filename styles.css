@@ -212,7 +212,9 @@ button:disabled {
 }
 
 .case-activity-video {
-  max-height: 260px;
+  height: clamp(168px, 48vw, 220px);
+  max-height: none;
+  object-fit: contain;
   border-radius: 14px;
   background: #0f172a;
 }
