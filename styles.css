@@ -2730,3 +2730,40 @@ body.voice-call-open .case-action-notice {
   line-height: 1.25;
   text-align: center;
 }
+
+/* Dock portado a body: no participa del scroll ni alcanza el final del padre. */
+:root {
+  --ac-case-dock-height: 56px;
+}
+
+body.active-case-open > .communication-grid {
+  position: fixed !important;
+  z-index: 1000 !important;
+  top: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  max-width: 520px !important;
+  margin: 0 auto !important;
+  padding:
+    3px max(8px, env(safe-area-inset-right, 0px))
+    calc(3px + var(--ac-safe-bottom))
+    max(8px, env(safe-area-inset-left, 0px)) !important;
+  transform: none !important;
+  border: 0 !important;
+  border-top: 1px solid #dbe3ef !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: 0 -6px 18px rgba(15, 23, 42, .12) !important;
+}
+
+body.active-case-open #activePanel {
+  padding-bottom: calc(var(--ac-case-dock-height) + var(--ac-safe-bottom) + 14px);
+}
+
+body:not(.active-case-open) > .communication-grid,
+body.active-case-open.modal-open > .communication-grid,
+body.active-case-open.voice-call-open > .communication-grid {
+  display: none !important;
+}

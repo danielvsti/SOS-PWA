@@ -491,6 +491,11 @@ const workerPnrList = document.getElementById("workerPnrList");
 const categoryPanel = document.getElementById("categoryPanel");
 const categoryFeedback = document.getElementById("categoryFeedback");
 const activePanel = document.getElementById("activePanel");
+const communicationGrid = activePanel?.querySelector(".communication-grid") || null;
+const communicationGridAnchor = document.createComment("queltu-case-dock");
+if (communicationGrid?.parentNode) {
+  communicationGrid.parentNode.insertBefore(communicationGridAnchor, communicationGrid);
+}
 const textPanel = document.getElementById("textPanel");
 const audioPanel = document.getElementById("audioPanel");
 const recordingBanner = document.getElementById("recordingBanner");
@@ -537,6 +542,25 @@ function hideCaseActionNotice() {
   notice.hidden = true;
   notice.textContent = "";
 }
+
+function syncActiveCaseDockState() {
+  const activeCaseOpen = Boolean(activePanel && !activePanel.hidden);
+  document.body.classList.toggle("active-case-open", activeCaseOpen);
+  if (!communicationGrid) return;
+  if (activeCaseOpen && communicationGrid.parentElement !== document.body) {
+    document.body.appendChild(communicationGrid);
+  } else if (!activeCaseOpen && communicationGridAnchor.parentNode) {
+    communicationGridAnchor.parentNode.insertBefore(communicationGrid, communicationGridAnchor.nextSibling);
+  }
+}
+
+if (activePanel) {
+  new MutationObserver(syncActiveCaseDockState).observe(activePanel, {
+    attributes: true,
+    attributeFilter: ["hidden"]
+  });
+}
+syncActiveCaseDockState();
 
 const authPanel = document.getElementById("authPanel");
 const loginBlock = document.getElementById("loginBlock");
@@ -962,6 +986,7 @@ function showLogin() {
   homePanel.hidden = true;
   categoryPanel.hidden = true;
   activePanel.hidden = true;
+  syncActiveCaseDockState();
   profilePanel.hidden = true;
   authPanel.hidden = false;
   loginBlock.hidden = false;
@@ -1810,6 +1835,7 @@ function showActiveAlert() {
   homePanel.hidden = true;
   categoryPanel.hidden = true;
   activePanel.hidden = false;
+  syncActiveCaseDockState();
   cancelButton.hidden = false;
   sosButton.disabled = true;
   confirmButton.disabled = false;
